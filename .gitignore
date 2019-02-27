@@ -1,1 +1,4 @@
 .idea
+test/.cache
+test/__pycache__
+mod_bot/__pycache__

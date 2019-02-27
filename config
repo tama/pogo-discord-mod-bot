@@ -1,3 +1,5 @@
 raid_duration=45
 delete_interval_after_warning=5
 warn_interval=15
+
+filepath=/home/tama/bot/data
