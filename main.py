@@ -293,7 +293,8 @@ LIST pour avoir la liste des arènes reconnues'''
                         chunk_message = ""
                     chunk_message += line + "\n"
                 await message.channel.send(chunk_message)
-            await message.channel.send(message_to_send)
+            else:
+                await message.channel.send(message_to_send)
 
         if should_delete is True:
             await message.delete()
