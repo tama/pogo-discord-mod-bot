@@ -31,6 +31,8 @@ listen_to = {
     387160186424655872: 462991996131344405  #Paris 16
 }
 
+MAX_MESSAGE_SIZE = 2000
+
 conf = {}
 ddb_list = {'timeouts': {}, 'messages':{}}
 
@@ -278,9 +280,21 @@ LIST pour avoir la liste des arènes reconnues'''
                         await message_in_channel.delete()
                 
                 await message.add_reaction(u"\u2705")
-                
+
         if len(message_to_send) > 0:
-            await message.channel.send(message_to_send)
+            # Hack to handle long messages
+            size = len(message_to_send)
+            if size >= MAX_MESSAGE_SIZE:
+                lines = message_to_send.split("\n")
+                chunk_message = ""
+                for line in lines:
+                    if len(chunk_message) + len(line) > MAX_MESSAGE_SIZE:
+                        await message.channel.send(chunk_message)
+                        chunk_message = ""
+                    chunk_message += line + "\n"
+                await message.channel.send(chunk_message)
+            else:
+                await message.channel.send(message_to_send)
 
         if should_delete is True:
             await message.delete()
