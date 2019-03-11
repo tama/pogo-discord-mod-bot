@@ -2,34 +2,25 @@
 # coding: utf-8
 
 import asyncio
-import discord
-
-import re
+import collections
 import datetime
-import pytz
-
+import json
 import os
 import pickle
-import collections
+import re
+import time
 
 import Levenshtein
-import time
+import discord
+import pytz
 
 from mod_bot import roulette
 
 client = discord.Client()
 is_connected = False
 
-listen_to = {
-    353624316585443329: 422859285622685708, #Sevres
-    322379168048349185: 426716226274983957, #Boulbi
-    353176435026034690: 441684675690364938, #Serveur de test
-    387160186424655872: 462991996131344405  #Paris 16
-}
-
 MAX_MESSAGE_SIZE = 2000
 
-conf = {}
 ddb_list = {'timeouts': {}, 'messages':{}}
 
 def get_token():
@@ -54,7 +45,7 @@ def add_minutes(hstart, mstart, mn):
 async def on_ready():
     print("on_ready")
     print(conf)
-    is_connected = True
+
 
 @client.event
 async def on_message(message):
@@ -81,8 +72,9 @@ async def on_message(message):
         else:
             del(muted_users[message.author.name])
             save("muted", muted_users)
-    
-    if message.channel.guild.id in listen_to and listen_to[message.channel.guild.id] == message.channel.id and message.author.name != 'modbot':
+
+    guild_id = message.channel.guild.id
+    if is_listen_to(guild_id) and conf["listen_to"][str(guild_id)]["channel"] == str(message.channel.id) and message.author.name != 'modbot':
         should_delete = True
         message_to_send = ''
 
@@ -199,7 +191,7 @@ LIST pour avoir la liste des arènes reconnues'''
         return
 
     if words[0] == '!reg' and len(words) > 1:
-        ppath = '/home/tama/bot/data/{0}/player_data'.format(message.channel.guild.id)
+        ppath = conf['filepath'] + '/{0}/player_data'.format(message.channel.guild.id)
         if os.path.exists(ppath):
             d = load(ppath)
         else:
@@ -288,9 +280,9 @@ def load_gyms(guild_id, file_path):
         ex = len(sections) > 5 and sections[5] == 'EX'
         gym_list[full_name] = (short_name, full_name, address, sections[1], sections[2], ex)
     return gym_list
-    
+
 async def run(token):
-    await client.login(token)
+    await client.login(token.strip())
     await client.connect()
 
 async def modtask():
@@ -305,7 +297,7 @@ async def modtask():
             for channel in list(server.channels):
                 if 'fin' not in channel.name or (channel.topic is not None and len(channel.topic) > 0):
                     continue
-                
+
                 end_time_str = channel.name.split('-')[-1].replace('fin', '')
                 try:
                     etime = datetime.datetime.strptime(end_time_str, '%Hh%M')
@@ -365,7 +357,7 @@ async def modtask():
 @client.event
 async def on_reaction_add(reaction, user):
     global ddb_list
-    
+
     if str(reaction.message.guild.id) != '322379168048349185':
         return
 
@@ -409,7 +401,11 @@ async def on_reaction_add(reaction, user):
         ddb_list = {'messages': {}, 'timeouts':{}}
 
 def load(f):
-    return pickle.load(open(f, "rb"))
+    try:
+        muted = pickle.load(open(f, "rb"))
+    except EOFError:
+        muted = {}
+    return muted
 
 def save(f, data):
     pickle.dump(data, open(f, "wb"))
@@ -419,19 +415,19 @@ def get_local_time(dt, tz = None):
         tz = pytz.timezone('Europe/Paris')
     return pytz.utc.localize(dt, is_dst=None).astimezone(tz)
 
+
 def read_config():
     global conf
     print("reading configuration")
-    lines = [line.strip() for line in open("config", "r")]
-    conf = {}
-    for line in lines:
-        key = line.split("=")[0]
-        value = "=".join(line.split("=")[1:])
-        conf[key] = value
+    with open('config.json', 'r') as f:
+        conf = json.load(f)
     print("Done")
     print(conf)
 
-        
+def is_listen_to(id):
+    return str(id) in conf["listen_to"]
+
+
 if __name__ == '__main__':
     token = get_token()
     if token is not None:

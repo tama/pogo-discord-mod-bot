@@ -1,4 +1,3 @@
-discord==0.16.12
+-e git://github.com/Rapptz/discord.py@rewrite#egg=discord
 python-Levenshtein==0.12.0
-nose2==0.8.0
 pytz==2016.10
