@@ -43,14 +43,14 @@ def get_token():
     return token
 
 def add_minutes(hstart, mstart, mn):
-    if mn < 0 and mstart < int(mn % 60):
+    if mn < 0 and mstart < int(-mn % 60):
         carry = -1
     elif mn > 0 and int(mstart + (mn % 60)) > 59:
         carry = 1
     else:
         carry = 0
         
-    hend = int((hstart + int(mn / 60)) % 24) + carry
+    hend = int((hstart + int(mn / 60)) + carry) % 24
     mend = int((mstart + mn % 60) % 60)
     return (hend, mend)
     
