@@ -10,11 +10,11 @@ import pickle
 import re
 import time
 
-import Levenshtein
 import discord
 import pytz
 
-from mod_bot import roulette
+import roulette
+from gym import load_gyms, get_approx_name
 
 client = discord.Client()
 is_connected = False
@@ -82,11 +82,9 @@ async def on_message(message):
 
         if message.content == "LIST":
             should_delete = False
-            message_to_send += "```"
             od = collections.OrderedDict(sorted(gym_list.items()))
             for k in od:
                 message_to_send += k + "\n"
-            message_to_send += "```"
             
         if words[0] == "!raid":
             isOk = True
@@ -104,13 +102,27 @@ LIST pour avoir la liste des arènes reconnues'''
                 if gym_name not in gym_list:
                     gym_data = get_approx_name(gym_name, gym_list)
                 else:
-                    gym_data = gym_list[gym_name]
+                    gym_data = list(gym_list[gym_name])
 
-            if gym_data is None:
+            if len(gym_data) == 0:
                 message_to_send = 'Arène "{0}" inconnue\n'.format(gym_name)
                 isOk = False
                 should_delete = False
-                
+            elif len(gym_data) > 10:
+                message_to_send = "L'arène n'a pas pu être trouvée\n"
+                message_to_send += "La requête n'est pas assez spécifique, {0} résultats possibles\n".format(len(gym_data))
+                message_to_send += "Veuillez préciser votre recherche, utilisez `LIST` pour trouver votre arène"
+                isOk = False
+                should_delete = False
+            elif len(gym_data) >= 2:
+                message_to_send = "L'arène n'a pas pu être trouvée\n"
+                message_to_send += "Vouliez vous dire l'un des choix suivants?\n"
+                message_to_send += ", ".join(map(lambda x: x[1], gym_data))
+                isOk = False
+                should_delete = False
+            else:
+                gym_data = gym_data[0]
+
             if isOk is True:
                 hour_pattern = re.compile("@*((0*[0-9])|(1[0-9])|(2[0-3]))[:hH]([0-5][0-9])")
                 end_hour = words[-1]
@@ -235,51 +247,6 @@ def get_similar_channel(server, gym_name, end_hour):
     # Not found.
     return None
 
-def get_approx_name(gym_name, gym_list):
-    result = None
-    try:
-        gn = gym_name.lower()
-        gn = gn.replace('é', 'e').replace('è', 'e').replace('ê', 'e').replace('à', 'a').replace('â', 'a')
-
-        # Try autocomplete
-        gyms = list(gym_list.keys())
-        candidates = [x for x in gyms if gym_name.lower() in x]
-        if len(candidates) == 1:
-            result = gym_list[candidates[0]]
-        else:
-            candidates = [x for x in gyms if gn in x.lower()]
-            if len(candidates) == 1:
-                result = gym_list[candidates[0]]
-        
-        # Try Levenshtein distance
-        if result is None:
-            for k,v in gym_list.items():
-                if gn == k:
-                    result = v
-                    break
-
-                d = Levenshtein.distance(gn, k)
-                if d < 3:
-                    result = v
-                    break
-    except Exception as e:
-        # Failed.
-        print(e)
-        pass
-    return result
-
-
-def load_gyms(guild_id, file_path):
-    gym_list = {}
-    lines = [line.strip() for line in open("{0}/{1}/gym_with_coords".format(file_path, guild_id), "r", encoding="utf8")]
-    for l in lines:
-        sections = l.split(';')
-        short_name = sections[0]
-        full_name = sections[3]
-        address = sections[4] if len(sections) > 4 else None
-        ex = len(sections) > 5 and sections[5] == 'EX'
-        gym_list[full_name] = (short_name, full_name, address, sections[1], sections[2], ex)
-    return gym_list
 
 async def run(token):
     await client.login(token.strip())
@@ -310,6 +277,7 @@ async def modtask():
                 
                 last_message_timestamp = None
                 last_modbot_tz = None
+                last_message_tz = None
                 
                 # Recherche dans les 5 derniers messages le dernier ne
                 # provenant pas de modbot
@@ -328,6 +296,7 @@ async def modtask():
                     if last_modbot_tz is None and message_ts > end_time_tz:
                         #print("MOD")
                         last_modbot_tz = message_ts
+
 
                 if last_message_tz is None:
                     continue
