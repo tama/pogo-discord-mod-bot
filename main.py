@@ -86,97 +86,6 @@ async def on_message(message):
             del(muted_users[message.author.name])
             save("muted", muted_users)
     
-    if message.channel.topic is not None and "échange" in message.channel.topic and message.author.name != 'modbot':
-        tradeFilepath = '/home/tama/bot/data/{0}/trade'.format(message.channel.guild.id)
-        if os.path.exists(tradeFilepath):
-            tradeData = load(tradeFilepath)
-        else:
-            tradeData = {'need': {}, 'stock': {}}
-        username = '{0}#{1}'.format(message.author.name, message.author.discriminator)
-
-        if words[0] == '!list':
-            output = ''
-            for k, v in tradeData['need'].items():
-                if username in v:
-                    output = output + k + ', '
-            if len(output) > 0:
-                output = output[:-2]
-                output = '{0} est à la recherche de {1}'.format(message.author.mention, output)
-                await message.channel.send(output)
-                await message.delete()
-
-        if len(words) < 2:
-            return
-        
-        raw = ' '.join(words[1:])
-        
-        if words[0] == '!need':
-            for what in raw.split(','):
-                what = what.strip().lower()
-                if what in tradeData['stock']:
-                    output = ''
-
-                    # Récupère la liste des utilisateurs qui ont ce qui est recherché
-                    for u in tradeData['stock'][what]:
-                        uname = u.split('#')[0]
-                        disc = u.split('#')[1]
-                        member = discord.utils.find(lambda m: m.name == uname and m.discriminator == disc, message.channel.members)
-                        if member is not None:
-                            output = output + member.mention + " "
-                            
-                    if len(output) > 0:
-                        output = "Hey {0}".format(message.author.mention) + ", {0} a {1}".format(output, what)
-                        await message.channel.send(output)
-                        await message.delete()
-
-                # Personne ne l'a, ajoute à la liste des recherchés
-                if what not in tradeData['need']:
-                    tradeData['need'][what] = []
-                if username not in tradeData['need'][what]:
-                    tradeData['need'][what].append(username)
-
-            raw = raw.replace(',', ', ')
-            await message.channel.send('{0} cherche {1}'.format(message.author.mention, raw))
-            await message.delete()
-
-        if words[0] == '!have':
-            for what in raw.split(','):
-                what = what.strip().lower()
-                output = ''
-                if what in tradeData['need']:
-                    for u in tradeData['need'][what]:
-                        # find the user
-                        uname = u.split('#')[0]
-                        disc = u.split('#')[1]
-                        member = discord.utils.find(lambda m: m.name == uname and m.discriminator == disc, message.channel.members)
-                        if member is not None:
-                            output = output + member.mention + " "
-                else:
-                    if what not in tradeData['stock']:
-                        tradeData['stock'][what] = []
-                    if username not in tradeData['stock'][what]:
-                        tradeData['stock'][what].append(username)
-                        
-                if len(output) > 0:
-                    output = "Hey " + output + ", {0} a {1}".format(message.author.mention, what)
-                    await message.channel.send(output)
-                    await message.delete()
-
-                    
-        if words[0] == '!got':
-            output = ''
-            for what in raw.split(','):
-                what = what.strip().lower()
-                if what in tradeData['need'] and username in tradeData['need'][what]:
-                    tradeData['need'][what].remove(username)
-                    output = output + '{0} a obtenu {1}\n'.format(message.author.mention, what)
-            if len(output) > 0:
-                await message.channel.send(output)
-                await message.delete()
-                        
-        save(tradeFilepath, tradeData)
-        return
-    
     if message.channel.guild.id in listen_to and listen_to[message.channel.guild.id] == message.channel.id and message.author.name != 'modbot':
         should_delete = True
         message_to_send = ''
@@ -275,7 +184,6 @@ LIST pour avoir la liste des arènes reconnues'''
                 await info_msg.pin()
 
                 async for message_in_channel in new_channel.history(limit = 10):
-                    #print("{0} {1} {2}".format(message.id, message.author, message.content.encode('utf8')))
                     if len(message_in_channel.content) == 0:
                         await message_in_channel.delete()
                 
@@ -314,7 +222,6 @@ LIST pour avoir la liste des arènes reconnues'''
         d[pkey] = teams
         save(ppath, d)
 
-        
     if words[0] == '!pokemon' and len(words) > 1 and 'fin' in message.channel.name:
         cwords = message.channel.name.split('-')
         pokemon_name = words[1].replace('é', 'e').replace('è', 'e').replace('ê', 'e').replace('à', 'a').replace('â', 'a')
@@ -379,96 +286,9 @@ def get_approx_name(gym_name, gym_list):
         pass
     return result
     
-async def create_raid_channel(message):
-    now = message.created_at
-    embeds = message.embeds
-
-    if embeds is None:
-        return
-
-    for embed in embeds:
-        if 'description' not in embed:
-            continue
-        
-        d = embed['description']
-        title = embed['title']        
-        lines = d.split('\n')
-
-        # Extract informations
-        # TODO do something more robust
-        loc = lines[0].replace('*', '')
-        loc = loc[0:-1]
-        level = title[6]
-        is_waiting = 'Starting' in lines[-1]
-        
-        time_left = lines[-1].split(':')[1]
-        time_left = time_left.replace('*', '')
-        time_left = time_left.replace(' hours ', ':')
-        time_left = time_left.replace(' min ', ':')
-        time_left = time_left.replace(' sec', '')
-
-        # Get raid end time
-        time_parts = time_left.split(':')
-        delta_to_add = 3600 + 3600 * int(time_parts[0]) + 60 * int(time_parts[1]) + int(time_parts[2])
-        if is_waiting is True:
-            delta_to_add += 45 * 60 # add the raid duration (45 minutes)
-            name = 'egg{0}'.format(level)
-        else:
-            name = lines[1].replace('*', '')
-
-        name = name[0:5]
-        end_time = now + datetime.timedelta(seconds = delta_to_add)
-        end_time_hhmm = end_time.strftime('%H:%M').replace(':', 'h')
-#        print("{0} + {1}".format(str(now), delta_to_add))
-#        print("lv {0} @ {1} ({2} {3} => {4})".format(level, loc.encode('utf8'), is_waiting, time_left, str(end_time)))
-
-        filename = "/home/tama/bot/data/{0}/gym_with_coords".format(message.channel.server.id)
-        lines = [line.strip() for line in open(filename, "r", encoding="utf8")]
-        for line in lines:
-            parts = line.split(';')
-            if len(parts) < 4:
-                continue
-
-            end_time_hhmm = end_time_hhmm.replace(':', 'h').replace('H', 'h')
-            if parts[3] == loc:
-                short_name = parts[0]
-                channel_name = '{0}-{1}-fin{2}'.format(name, short_name, end_time_hhmm)
-#                print(channel_name.encode('utf8'))
-
-                raid_channel = await create_or_rename_channel(channel_name, message.channel.server)
-                raid_description_template = '''
-**Raid level [[level]]**
-**Location** : **[[gym_name]]** (https://www.google.com/maps/place/[[coords]])
-'''
-                raid_description = raid_description_template.replace('[[level]]', level)
-                raid_description = raid_description.replace('[[gym_name]]', parts[3])
-                raid_description = raid_description.replace('[[coords]]', '{0},{1}'.format(parts[1], parts[2]))
-                await client.send_message(raid_channel, content = raid_description)
-                
-async def create_or_rename_channel(new_channel, server):
-    new_channel_loc = new_channel.split('-')[1]
-    new_channel_end = new_channel.split('-')[2].replace('fin', '').replace('h', '')
-
-    for c in server.channels:
-        cname = c.name.split('_')[-1]
-        parts = cname.split('-')
-        if len(parts) < 3:
-            continue
-
-        loc = parts[1]
-        end = parts[2].replace('fin', '').replace('h', '')
-
-        if new_channel_loc == loc and abs(int(new_channel_end) - int(end)) < 50:
-            await client.edit_channel(c, name=new_channel)
-            print("{0} -> {1}".format(cname, new_channel))
-            return c
-
-    return await client.create_channel(server, new_channel)
-
 async def run(token):
     await client.login(token)
     await client.connect()
-
 
 async def modtask():
     tz = pytz.timezone('Europe/Paris')
@@ -479,14 +299,10 @@ async def modtask():
         
 #        print("Doing mod tasks")
         for server in client.guilds:
-#            if server.id == 322379168048349185:
-#                continue
-
             for channel in list(server.channels):
                 if 'fin' not in channel.name or (channel.topic is not None and len(channel.topic) > 0):
                     continue
                 
-                #print("[CHECK] {0}".format(channel.name))
                 end_time_str = channel.name.split('-')[-1].replace('fin', '')
                 try:
                     etime = datetime.datetime.strptime(end_time_str, '%Hh%M')
@@ -496,7 +312,6 @@ async def modtask():
                 end_time = datetime.datetime(now.year, now.month, now.day, etime.hour, etime.minute)
                 end_time += datetime.timedelta(seconds = 60 * int(conf["warn_interval"]))
                 end_time_tz = tz.localize(end_time)
-#                print("{0}".format(end_time_tz))
                 
                 last_message_timestamp = None
                 last_modbot_tz = None
@@ -510,7 +325,6 @@ async def modtask():
                         last_message = message
                         
                     message_ts = get_local_time(message.created_at)
-                    #print("   [{0}] {1}".format(message_ts, message.author.name))
                     
                     if message.author.name != 'modbot':
                         last_message_tz = message_ts
@@ -549,7 +363,6 @@ async def modtask():
 async def on_reaction_add(reaction, user):
     global ddb_list
     
-#    print("{0} : {1}".format(user.name.encode('utf-8'), str(reaction).encode('utf-8')))
     if str(reaction.message.guild.id) != '322379168048349185':
         return
 
