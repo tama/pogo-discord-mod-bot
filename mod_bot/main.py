@@ -4,9 +4,6 @@
 import asyncio
 import discord
 
-import requests
-import shutil
-
 import re
 import datetime
 import pytz
@@ -16,10 +13,9 @@ import pickle
 import collections
 
 import Levenshtein
-import random
 import time
 
-import roulette
+from mod_bot import roulette
 
 client = discord.Client()
 is_connected = False
@@ -89,16 +85,8 @@ async def on_message(message):
     if message.channel.guild.id in listen_to and listen_to[message.channel.guild.id] == message.channel.id and message.author.name != 'modbot':
         should_delete = True
         message_to_send = ''
-        
-        gym_list = {}
-        lines = [line.strip() for line in open("/home/tama/bot/data/{0}/gym_with_coords".format(message.channel.guild.id), "r", encoding="utf8")]
-        for l in lines:
-            sections = l.split(';')
-            short_name = sections[0]
-            full_name = sections[3]
-            address = sections[4] if len(sections) > 4 else None
-            ex = len(sections) > 5 and sections[5] == 'EX'
-            gym_list[full_name] = (short_name, full_name, address, sections[1], sections[2], ex)
+
+        gym_list = load_gyms(message.channel.guild.id, conf["filepath"])
 
         if message.content == "LIST":
             should_delete = False
@@ -285,6 +273,19 @@ def get_approx_name(gym_name, gym_list):
         print(e)
         pass
     return result
+
+
+def load_gyms(guild_id, file_path):
+    gym_list = {}
+    lines = [line.strip() for line in open("{0}/{1}/gym_with_coords".format(file_path, guild_id), "r", encoding="utf8")]
+    for l in lines:
+        sections = l.split(';')
+        short_name = sections[0]
+        full_name = sections[3]
+        address = sections[4] if len(sections) > 4 else None
+        ex = len(sections) > 5 and sections[5] == 'EX'
+        gym_list[full_name] = (short_name, full_name, address, sections[1], sections[2], ex)
+    return gym_list
     
 async def run(token):
     await client.login(token)
