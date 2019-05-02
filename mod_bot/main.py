@@ -17,8 +17,6 @@ import time
 
 from mod_bot import roulette
 
-import scanImage
-
 client = discord.Client()
 is_connected = False
 
@@ -84,40 +82,7 @@ async def on_message(message):
             del(muted_users[message.author.name])
             save("muted", muted_users)
     
-    beta_users = [line.strip() for line in open("betalist", "r", encoding="utf8")]
-
-    if message.author.name in beta_users and words[0] == '!confirm':
-        if not os.path.exists(words[1]):
-            await message.channel.send("Id inconnu, vérifiez que vous l'avez correctement entré")
-            return
-        tf = load(words[1])
-        for i in tf["list"]:
-            await message.channel.send(i)
-        oldmsg = await message.channel.get_message(int(words[1]))
-        await oldmsg.delete()
-        helpmsg = await message.channel.get_message(tf["help_msg_id"])
-        await helpmsg.delete()
-        os.remove(words[1])
-                  
-    if str(message.channel.guild.id) == '322379168048349185' and listen_to[message.channel.guild.id] == message.channel.id and message.attachments is not None and len(message.attachments) > 0:
-        if message.author.name not in beta_users:
-            await message.channel.send('Désolé cette fonctionnalité est encore en bêta, contactez @tama#9741 pour demander à y avoir accès')
-            return
-
-        a = message.attachments[0]
-        if a.height is not None:
-            await message.attachments[0].save("in.png")
-            try:
-                cmd_proposed = scanImage.process_picture("in.png")
-                output = await message.channel.send("Analyse de l'image terminée, les commandes suivantes peuvent être envoyées :\n" + "\n".join(cmd_proposed))
-                help_msg = await message.channel.send("Pour confirmer, envoyer `!confirm {0}`".format(output.id))
-                save(str(output.id), {"list": cmd_proposed, "help_msg_id": help_msg.id})
-            except Exception as e:
-                await message.channel.send("Oups, erreur :( ({0})".format(e))
-
-        return
-
-    if message.channel.guild.id in listen_to and listen_to[message.channel.guild.id] == message.channel.id and (message.author.name != 'modbot' or (message.author.name == 'modbot' and words[0] == '!raid')):
+    if message.channel.guild.id in listen_to and listen_to[message.channel.guild.id] == message.channel.id and message.author.name != 'modbot':
         should_delete = True
         message_to_send = ''
 
@@ -465,9 +430,9 @@ async def on_reaction_add(reaction, user):
 
     if who is not None:
         muted_time = 90
-        if who == 'Fako':
+        if who is 'Fako':
             muted_time = muted_time * 2
-            if user.name == 'Fako':
+            if user.name is 'Fako':
                 muted_time = muted_time * 2
         maxTimeout = 0
         await reaction.message.channel.send('[**Roulette DDB**] {0} ne peut plus poster pendant {1} secondes ({2})'.format(who, muted_time, user.name))
