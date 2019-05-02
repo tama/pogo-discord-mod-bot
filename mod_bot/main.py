@@ -120,7 +120,7 @@ LIST pour avoir la liste des arènes reconnues'''
                 should_delete = False
                 
             if isOk is True:
-                hour_pattern = re.compile("@*(([0-1][0-9])|(2[0-3]))[:hH]([0-5][0-9])")
+                hour_pattern = re.compile("@*((0*[0-9])|(1[0-9])|(2[0-3]))[:hH]([0-5][0-9])")
                 end_hour = words[-1]
                 m = hour_pattern.match(end_hour)
                 if m is None:
@@ -129,14 +129,16 @@ LIST pour avoir la liste des arènes reconnues'''
 
             if isOk is True:
                 end_hour = end_hour.replace(':', 'h').lower()
+                h = end_hour.replace('@', '').split('h')[0]
                 if end_hour[0] == '@':
                     # Heure de pop, calcule l'heure de fin
-                    pop_hour = end_hour[1:]
+                    pop_hour = ('0' if int(h) < 10 and len(h) < 2 else '') + end_hour[1:]
                     hend = int(pop_hour.split('h')[0])
                     mend = int(pop_hour.split('h')[1])
                     endtime = add_minutes(hend, mend, int(conf["raid_duration"]))
                     end_hour = "{0:02d}h{1:02d}".format(endtime[0], endtime[1])
                 else:
+                    end_hour = ('0' if int(h) < 10 and len(h) < 2 else '') + end_hour
                     hend = int(end_hour.split('h')[0])
                     mend = int(end_hour.split('h')[1])
                     starttime = add_minutes(hend, mend, -int(conf["raid_duration"]))
