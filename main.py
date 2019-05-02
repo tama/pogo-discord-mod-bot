@@ -302,9 +302,9 @@ async def modtask():
 #        print("Doing mod tasks")
         for server in client.guilds:
             for channel in list(server.channels):
-                if 'fin' not in channel.name or (channel.topic is not None and len(channel.topic) > 0) or str(channel.id) in ignored:
+                if 'fin' not in channel.name or (channel.topic is not None and len(channel.topic) > 0):
                     continue
-
+                
                 end_time_str = channel.name.split('-')[-1].replace('fin', '')
                 try:
                     etime = datetime.datetime.strptime(end_time_str, '%Hh%M')
@@ -342,7 +342,7 @@ async def modtask():
                     time_since_modbot = now_tz - last_modbot_tz
                 else:
                     time_since_modbot = datetime.timedelta(seconds=0)
-                    
+
                 time_delta = now_tz - last_message_tz
                 time_since_end = now_tz - end_time_tz
 
