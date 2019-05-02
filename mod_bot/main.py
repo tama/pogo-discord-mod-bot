@@ -297,17 +297,12 @@ async def modtask():
     tz = pytz.timezone('Europe/Paris')
 
     while True:
-        print("Modtask")
         now = datetime.datetime.now()
         now_tz = tz.localize(now)
-
-        ignored = conf["ignored"].split(";")
-
+        
 #        print("Doing mod tasks")
         for server in client.guilds:
             for channel in list(server.channels):
-                #print("{} ({})".format(channel.name.encode(), channel.id))
-
                 if 'fin' not in channel.name or (channel.topic is not None and len(channel.topic) > 0) or str(channel.id) in ignored:
                     continue
 
@@ -316,23 +311,23 @@ async def modtask():
                     etime = datetime.datetime.strptime(end_time_str, '%Hh%M')
                 except:
                     continue
-
+                
                 end_time = datetime.datetime(now.year, now.month, now.day, etime.hour, etime.minute)
                 end_time += datetime.timedelta(seconds = 60 * int(conf["warn_interval"]))
                 end_time_tz = tz.localize(end_time)
-
+                
                 last_message_timestamp = None
                 last_modbot_tz = None
-
+                
                 # Recherche dans les 5 derniers messages le dernier ne
                 # provenant pas de modbot
                 last_message = None
                 async for message in channel.history(limit = 5):
                     if last_message is None:
                         last_message = message
-
+                        
                     message_ts = get_local_time(message.created_at)
-
+                    
                     if message.author.name != 'modbot':
                         last_message_tz = message_ts
                         break
@@ -348,12 +343,12 @@ async def modtask():
                     time_since_modbot = now_tz - last_modbot_tz
                 else:
                     time_since_modbot = datetime.timedelta(seconds=0)
-
+                    
                 time_delta = now_tz - last_message_tz
                 time_since_end = now_tz - end_time_tz
 
                 #print("now = {0}, end_time = {1}, last_message = {2} ({3}), last_modbot = {4} ({5})".format(now_tz, end_time_tz, last_message_tz, time_delta, last_modbot_tz, time_since_modbot))
-
+                
                 if now_tz < end_time_tz:
                     continue
 
@@ -364,7 +359,6 @@ async def modtask():
                     #print("Warning {0}".format(channel.name.encode('utf8')))
                     await channel.send("Aucun message n'a été posté depuis plus de {0} minutes après la fin du raid, ce salon sera automatiquement archivé dans {1} minutes.\n**Si ce salon n'est pas destiné à être supprimé, veuillez contacter un modérateur/administrateur**".format(conf["warn_interval"], conf["delete_interval_after_warning"]))
 
-        print("End modtask")
         await asyncio.sleep(30)
 
 @client.event
