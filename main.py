@@ -21,6 +21,8 @@ import time
 
 import roulette
 
+import scanImage
+
 client = discord.Client()
 is_connected = False
 
@@ -86,7 +88,40 @@ async def on_message(message):
             del(muted_users[message.author.name])
             save("muted", muted_users)
     
-    if message.channel.guild.id in listen_to and listen_to[message.channel.guild.id] == message.channel.id and message.author.name != 'modbot':
+    beta_users = [line.strip() for line in open("betalist", "r", encoding="utf8")]
+
+    if message.author.name in beta_users and words[0] == '!confirm':
+        if not os.path.exists(words[1]):
+            await message.channel.send("Id inconnu, vérifiez que vous l'avez correctement entré")
+            return
+        tf = load(words[1])
+        for i in tf["list"]:
+            await message.channel.send(i)
+        oldmsg = await message.channel.get_message(int(words[1]))
+        await oldmsg.delete()
+        helpmsg = await message.channel.get_message(tf["help_msg_id"])
+        await helpmsg.delete()
+        os.remove(words[1])
+                  
+    if str(message.channel.guild.id) == '322379168048349185' and listen_to[message.channel.guild.id] == message.channel.id and message.attachments is not None and len(message.attachments) > 0:
+        if message.author.name not in beta_users:
+            await message.channel.send('Désolé cette fonctionnalité est encore en bêta, contactez @tama#9741 pour demander à y avoir accès')
+            return
+
+        a = message.attachments[0]
+        if a.height is not None:
+            await message.attachments[0].save("in.png")
+            try:
+                cmd_proposed = scanImage.process_picture("in.png")
+                output = await message.channel.send("Analyse de l'image terminée, les commandes suivantes peuvent être envoyées :\n" + "\n".join(cmd_proposed))
+                help_msg = await message.channel.send("Pour confirmer, envoyer `!confirm {0}`".format(output.id))
+                save(str(output.id), {"list": cmd_proposed, "help_msg_id": help_msg.id})
+            except Exception as e:
+                await message.channel.send("Oups, erreur :( ({0})".format(e))
+
+        return
+
+    if message.channel.guild.id in listen_to and listen_to[message.channel.guild.id] == message.channel.id and (message.author.name != 'modbot' or (message.author.name == 'modbot' and words[0] == '!raid')):
         should_delete = True
         message_to_send = ''
         
@@ -132,7 +167,7 @@ LIST pour avoir la liste des arènes reconnues'''
                 should_delete = False
                 
             if isOk is True:
-                hour_pattern = re.compile("@*(([0-1][0-9])|(2[0-3]))[:hH]([0-5][0-9])")
+                hour_pattern = re.compile("@*((0*[0-9])|(1[0-9])|(2[0-3]))[:hH]([0-5][0-9])")
                 end_hour = words[-1]
                 m = hour_pattern.match(end_hour)
                 if m is None:
@@ -141,14 +176,16 @@ LIST pour avoir la liste des arènes reconnues'''
 
             if isOk is True:
                 end_hour = end_hour.replace(':', 'h').lower()
+                h = end_hour.replace('@', '').split('h')[0]
                 if end_hour[0] == '@':
                     # Heure de pop, calcule l'heure de fin
-                    pop_hour = end_hour[1:]
+                    pop_hour = ('0' if int(h) < 10 and len(h) < 2 else '') + end_hour[1:]
                     hend = int(pop_hour.split('h')[0])
                     mend = int(pop_hour.split('h')[1])
                     endtime = add_minutes(hend, mend, int(conf["raid_duration"]))
                     end_hour = "{0:02d}h{1:02d}".format(endtime[0], endtime[1])
                 else:
+                    end_hour = ('0' if int(h) < 10 and len(h) < 2 else '') + end_hour
                     hend = int(end_hour.split('h')[0])
                     mend = int(end_hour.split('h')[1])
                     starttime = add_minutes(hend, mend, -int(conf["raid_duration"]))
@@ -294,70 +331,104 @@ async def modtask():
     tz = pytz.timezone('Europe/Paris')
 
     while True:
+        try:
+            print("Modtask")
+            now = datetime.datetime.now()
+            now_tz = tz.localize(now)
+
+            ignored = conf["ignored"].split(";")
+
+    #        print("Doing mod tasks")
+            for server in client.guilds:
+                for channel in list(server.channels):
+                    #print("{} ({})".format(channel.name.encode(), channel.id))
+
+                    if 'fin' not in channel.name or (channel.topic is not None and len(channel.topic) > 0) or str(channel.id) in ignored:
+                        continue
+
+                    end_time_str = channel.name.split('-')[-1].replace('fin', '')
+                    try:
+                        etime = datetime.datetime.strptime(end_time_str, '%Hh%M')
+                    except:
+                        continue
+
+                    end_time = datetime.datetime(now.year, now.month, now.day, etime.hour, etime.minute)
+                    end_time += datetime.timedelta(seconds = 60 * int(conf["warn_interval"]))
+                    end_time_tz = tz.localize(end_time)
+
+                    last_message_timestamp = None
+                    last_modbot_tz = None
+
+                    # Recherche dans les 5 derniers messages le dernier ne
+                    # provenant pas de modbot
+                    last_message = None
+                    async for message in channel.history(limit = 5):
+                        if last_message is None:
+                            last_message = message
+
+                        message_ts = get_local_time(message.created_at)
+
+                        if message.author.name != 'modbot':
+                            last_message_tz = message_ts
+                            break
+
+                        if last_modbot_tz is None and message_ts > end_time_tz:
+                            #print("MOD")
+                            last_modbot_tz = message_ts
+
+                    if last_message_tz is None:
+                        continue
+
+                    if last_modbot_tz is not None:
+                        time_since_modbot = now_tz - last_modbot_tz
+                    else:
+                        time_since_modbot = datetime.timedelta(seconds=0)
+
+                    time_delta = now_tz - last_message_tz
+                    time_since_end = now_tz - end_time_tz
+
+                    #print("now = {0}, end_time = {1}, last_message = {2} ({3}), last_modbot = {4} ({5})".format(now_tz, end_time_tz, last_message_tz, time_delta, last_modbot_tz, time_since_modbot))
+
+                    if now_tz < end_time_tz:
+                        continue
+
+                    if time_since_modbot > datetime.timedelta(seconds = 60 * int(conf["delete_interval_after_warning"])):
+                        #print("DELETE {0}".format(channel.name.encode('utf8')))
+                        await channel.delete()  
+                    elif time_delta > datetime.timedelta(seconds = 60 * int(conf["warn_interval"])) and (last_message.author.name != 'modbot' or last_modbot_tz is None):
+                        #print("Warning {0}".format(channel.name.encode('utf8')))
+                        await channel.send("Aucun message n'a été posté depuis plus de {0} minutes après la fin du raid, ce salon sera automatiquement archivé dans {1} minutes.\n**Si ce salon n'est pas destiné à être supprimé, veuillez contacter un modérateur/administrateur**".format(conf["warn_interval"], conf["delete_interval_after_warning"]))
+
+            print("End modtask")
+        except Exception as e:
+            print(str(e))
+        
+        await asyncio.sleep(30)
+
+async def cleantask():
+    tz = pytz.timezone('Europe/Paris')
+
+    while True:
+        print("Cleaning")
         now = datetime.datetime.now()
         now_tz = tz.localize(now)
-        
-#        print("Doing mod tasks")
+
+        lines = [line.strip() for line in open("cleanme", "r")]
         for server in client.guilds:
             for channel in list(server.channels):
-                if 'fin' not in channel.name or (channel.topic is not None and len(channel.topic) > 0):
-                    continue
-                
-                end_time_str = channel.name.split('-')[-1].replace('fin', '')
-                try:
-                    etime = datetime.datetime.strptime(end_time_str, '%Hh%M')
-                except:
-                    continue
-                
-                end_time = datetime.datetime(now.year, now.month, now.day, etime.hour, etime.minute)
-                end_time += datetime.timedelta(seconds = 60 * int(conf["warn_interval"]))
-                end_time_tz = tz.localize(end_time)
-                
-                last_message_timestamp = None
-                last_modbot_tz = None
-                
-                # Recherche dans les 5 derniers messages le dernier ne
-                # provenant pas de modbot
-                last_message = None
-                print(channel.name.encode())
-                async for message in channel.history(limit = 5):
-                    if last_message is None:
-                        last_message = message
-                        
-                    message_ts = get_local_time(message.created_at)
-                    
-                    if message.author.name != 'modbot':
-                        last_message_tz = message_ts
-                        break
-
-                    if last_modbot_tz is None and message_ts > end_time_tz:
-                        #print("MOD")
-                        last_modbot_tz = message_ts
-
-                if last_message_tz is None:
+                if str(channel.id) not in lines:
                     continue
 
-                if last_modbot_tz is not None:
-                    time_since_modbot = now_tz - last_modbot_tz
-                else:
-                    time_since_modbot = datetime.timedelta(seconds=0)
-    
-                time_delta = now_tz - last_message_tz
-                time_since_end = now_tz - end_time_tz
-
-                #print("now = {0}, end_time = {1}, last_message = {2} ({3}), last_modbot = {4} ({5})".format(now_tz, end_time_tz, last_message_tz, time_delta, last_modbot_tz, time_since_modbot))
-                
-                if now_tz < end_time_tz:
-                    continue
-
-                if time_since_modbot > datetime.timedelta(seconds = 60 * int(conf["delete_interval_after_warning"])):
-                    #print("DELETE {0}".format(channel.name.encode('utf8')))
-                    await channel.delete()  
-                elif time_delta > datetime.timedelta(seconds = 60 * int(conf["warn_interval"])) and (last_message.author.name != 'modbot' or last_modbot_tz is None):
-                    #print("Warning {0}".format(channel.name.encode('utf8')))
-                    await channel.send("Aucun message n'a été posté depuis plus de {0} minutes après la fin du raid, ce salon sera automatiquement archivé dans {1} minutes.\n**Si ce salon n'est pas destiné à être supprimé, veuillez contacter un modérateur/administrateur**".format(conf["warn_interval"], conf["delete_interval_after_warning"]))
-
-        await asyncio.sleep(30)
+                print("Clean {0}".format(channel.id))
+                async for message in channel.history(limit = 100):
+                    if message.author.name == 'modbot' and 'Roulette DDB' in message.content:
+                        message_ts = get_local_time(message.created_at)
+                        elapsed = now_tz - message_ts
+                        if elapsed > datetime.timedelta(seconds = 600):
+                            print("Delete : {0}".format(message.content.encode("utf8")))
+                            await message.delete()
+        print("Clean finished")
+        await asyncio.sleep(60)
 
 @client.event
 async def on_reaction_add(reaction, user):
@@ -393,9 +464,9 @@ async def on_reaction_add(reaction, user):
 
     if who is not None:
         muted_time = 90
-        if who is 'Fako':
+        if who == 'Fako':
             muted_time = muted_time * 2
-            if user.name is 'Fako':
+            if user.name == 'Fako':
                 muted_time = muted_time * 2
         maxTimeout = 0
         await reaction.message.channel.send('[**Roulette DDB**] {0} ne peut plus poster pendant {1} secondes ({2})'.format(who, muted_time, user.name))
@@ -434,4 +505,9 @@ if __name__ == '__main__':
     if token is not None:
         loop = asyncio.get_event_loop()
         read_config()
-        loop.run_until_complete(asyncio.gather(run(token), modtask()))
+        loop.create_task(modtask())
+        loop.create_task(cleantask())
+        try:
+            loop.run_until_complete(asyncio.gather(run(token)))
+        except asyncio.CancelledError:
+            pass
