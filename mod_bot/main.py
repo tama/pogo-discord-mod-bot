@@ -371,31 +371,6 @@ async def modtask():
         
         await asyncio.sleep(30)
 
-async def cleantask():
-    tz = pytz.timezone('Europe/Paris')
-
-    while True:
-        print("Cleaning")
-        now = datetime.datetime.now()
-        now_tz = tz.localize(now)
-
-        lines = [line.strip() for line in open("cleanme", "r")]
-        for server in client.guilds:
-            for channel in list(server.channels):
-                if str(channel.id) not in lines:
-                    continue
-
-                print("Clean {0}".format(channel.id))
-                async for message in channel.history(limit = 100):
-                    if message.author.name == 'modbot' and 'Roulette DDB' in message.content:
-                        message_ts = get_local_time(message.created_at)
-                        elapsed = now_tz - message_ts
-                        if elapsed > datetime.timedelta(seconds = 600):
-                            print("Delete : {0}".format(message.content.encode("utf8")))
-                            await message.delete()
-        print("Clean finished")
-        await asyncio.sleep(60)
-
 @client.event
 async def on_reaction_add(reaction, user):
     global ddb_list
@@ -471,9 +446,4 @@ if __name__ == '__main__':
     if token is not None:
         loop = asyncio.get_event_loop()
         read_config()
-        loop.create_task(modtask())
-        loop.create_task(cleantask())
-        try:
-            loop.run_until_complete(asyncio.gather(run(token)))
-        except asyncio.CancelledError:
-            pass
+        loop.run_until_complete(asyncio.gather(run(token), modtask()))
