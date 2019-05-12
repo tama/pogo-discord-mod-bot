@@ -1,0 +1,28 @@
+{
+  "raid_duration": 45,
+  "delete_interval_after_warning": 5,
+  "warn_interval": 15,
+  "filepath": "/home/tama/bot/data",
+  "listen_to" : {
+    "573519479334633472": {
+	"id": "PBL",
+	"channel": "573520359857324033"
+  },
+    "353624316585443329": {
+      "id": "Sevres",
+      "channel": "422859285622685708"
+    },
+    "322379168048349185": {
+      "id": "Boulbi",
+      "channel": "426716226274983957"
+    },
+    "353176435026034690": {
+      "id": "Test",
+      "channel": "441684675690364938"
+    },
+    "387160186424655872": {
+      "id": "Paris16",
+      "channel": "462991996131344405"
+    }
+  }
+}
