@@ -3,8 +3,11 @@
   "delete_interval_after_warning": 5,
   "warn_interval": 15,
   "filepath": "/home/tama/bot/data",
-
   "listen_to" : {
+    "573519479334633472": {
+	"id": "PBL",
+	"channel": "573520359857324033"
+  },
     "353624316585443329": {
       "id": "Sevres",
       "channel": "422859285622685708"
