@@ -282,6 +282,7 @@ async def modtask():
                 # Recherche dans les 5 derniers messages le dernier ne
                 # provenant pas de modbot
                 last_message = None
+                last_message_tz = None
                 print(channel.name.encode())
                 async for message in channel.history(limit = 5):
                     if last_message is None:
