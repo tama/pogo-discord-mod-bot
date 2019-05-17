@@ -16,6 +16,8 @@ import pytz
 import roulette
 from gym import load_gyms, get_approx_name
 
+from raid import clean_raid_command
+
 client = discord.Client()
 is_connected = False
 
@@ -46,18 +48,6 @@ async def on_ready():
     print("on_ready")
     print(conf)
 
-
-
-def clean_whitespaces(command):
-    return clean_char(command, '')
-
-
-def clean_at_sign(command):
-    return clean_char(command, '@')
-
-
-def clean_char(command, char):
-    return list(filter(lambda part: part.strip() != char, command))
 
 @client.event
 async def on_message(message):
@@ -101,7 +91,7 @@ async def on_message(message):
         if words[0] == "!raid":
             isOk = True
 
-            words = clean_whitespaces(clean_at_sign(words))
+            words = clean_raid_command(words)
             if len(words) < 3:
                 message_to_send = '''Commande incorrecte.
 Format des messages : !raid *pokemon* *arene* *heureDeFin* (exemple : !raid latias tour tf1 13:15)
