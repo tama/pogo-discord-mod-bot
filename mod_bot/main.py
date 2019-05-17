@@ -48,8 +48,8 @@ async def on_ready():
 
 
 
-def clean_spaces(command):
-    return clean_char(command, ' ')
+def clean_whitespaces(command):
+    return clean_char(command, '')
 
 
 def clean_at_sign(command):
@@ -57,7 +57,7 @@ def clean_at_sign(command):
 
 
 def clean_char(command, char):
-    return list(filter(lambda part: part.trim() != char, command))
+    return list(filter(lambda part: part.strip() != char, command))
 
 @client.event
 async def on_message(message):
@@ -101,7 +101,7 @@ async def on_message(message):
         if words[0] == "!raid":
             isOk = True
 
-            words = clean_spaces(clean_at_sign(words))
+            words = clean_whitespaces(clean_at_sign(words))
             if len(words) < 3:
                 message_to_send = '''Commande incorrecte.
 Format des messages : !raid *pokemon* *arene* *heureDeFin* (exemple : !raid latias tour tf1 13:15)
