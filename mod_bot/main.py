@@ -16,6 +16,8 @@ import pytz
 import roulette
 from gym import load_gyms, get_approx_name
 
+from raid import clean_raid_command
+
 client = discord.Client()
 is_connected = False
 
@@ -51,6 +53,7 @@ async def on_ready():
 async def on_message(message):
     muted_users = load("muted")
     words = message.content.split(' ')
+    raid_words = clean_raid_command(words)
 
     if str(message.guild.id) == '322379168048349185' and message.author.name in ['tama', 'Killerlolo']:
         if words[0] == '!mute':
@@ -86,9 +89,10 @@ async def on_message(message):
             for k in od:
                 message_to_send += k + "\n"
             
-        if words[0] == "!raid":
+        if raid_words[0] == "!raid":
             isOk = True
-            
+
+            words = raid_words
             if len(words) < 3:
                 message_to_send = '''Commande incorrecte.
 Format des messages : !raid *pokemon* *arene* *heureDeFin* (exemple : !raid latias tour tf1 13:15)
