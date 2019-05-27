@@ -3,6 +3,7 @@ import unittest
 from mod_bot import raid
 from datetime import time
 from datetime import datetime
+from datetime import timedelta
 import pytz
 
 
@@ -31,29 +32,50 @@ class TestRaidCreation(unittest.TestCase):
         self.assertEqual(raid.get_raid_hours(hour, 45, now), (time(20, 0), time(20, 45)))
         hour = "@9h12"
         self.assertEqual(raid.get_raid_hours(hour, 10, now), (time(9, 12), time(9, 22)))
+        hour = "@9:12"
+        self.assertEqual(raid.get_raid_hours(hour, 10, now), (time(9, 12), time(9, 22)))
 
     def test_raid_end_time(self):
         hour = "20h45"
-        self.assertEqual(raid.get_raid_hours(hour, 45, now), (time(20, 0), time(20, 45)))
+        self.assertEqual(raid.get_raid_hours(hour, 45, now), (now.time(), time(20, 45)))
         hour = "9h22"
-        self.assertEqual(raid.get_raid_hours(hour, 10, now), (time(9, 12), time(9, 22)))
-
-    def test_format_date_minutes(self):
-        minutes = "43"
-        self.assertEqual(raid.try_parsing_date(minutes).time(), time(0, 43))
-        minutes = "43mn"
-        self.assertEqual(raid.try_parsing_date(minutes).time(), time(0, 43))
-        minutes = "43min"
-        self.assertEqual(raid.try_parsing_date(minutes).time(), time(0, 43))
-        minutes = "43minutes"
-        self.assertEqual(raid.try_parsing_date(minutes).time(), time(0, 43))
-        minutes = "-10"
-        self.assertEqual(raid.try_parsing_date(minutes), None)
-        minutes = "70"  # TODO: Should work for events
-        self.assertEqual(raid.try_parsing_date(minutes), None)
+        self.assertEqual(raid.get_raid_hours(hour, 10, now), (now.time(), time(9, 22)))
+        hour = "9:22"
+        self.assertEqual(raid.get_raid_hours(hour, 10, now), (now.time(), time(9, 22)))
+        hour = "42"
+        end_time = (now + timedelta(minutes=42)).time()
+        self.assertEqual(raid.get_raid_hours(hour, 10, now), (now.time(), end_time), "no suffix")
+        hour = "42mn"
+        self.assertEqual(raid.get_raid_hours(hour, 10, now), (now.time(), end_time), "mn")
+        hour = "42min"
+        self.assertEqual(raid.get_raid_hours(hour, 10, now), (now.time(), end_time), "min")
+        hour = "42minutes"
+        self.assertEqual(raid.get_raid_hours(hour, 10, now), (now.time(), end_time), "minutes")
 
     def test_format_date_hour(self):
         hours = "10h11"
-        self.assertEqual(raid.try_parsing_date(hours).time(), time(10, 11))
+        self.assertEqual(raid.try_parsing_date(hours)[0].time(), time(10, 11))
+        self.assertEqual(raid.try_parsing_date(hours)[1], False)
+        hours = "10:11"
+        self.assertEqual(raid.try_parsing_date(hours)[0].time(), time(10, 11))
+        self.assertEqual(raid.try_parsing_date(hours)[1], False)
         hours = "@10h11"
-        self.assertEqual(raid.try_parsing_date(hours).time(), time(10, 11))
+        self.assertEqual(raid.try_parsing_date(hours)[0].time(), time(10, 11))
+        self.assertEqual(raid.try_parsing_date(hours)[1], True)
+        hours = "@10:11"
+        self.assertEqual(raid.try_parsing_date(hours)[0].time(), time(10, 11))
+        self.assertEqual(raid.try_parsing_date(hours)[1], True)
+
+    def test_parse_minutes(self):
+        minutes = "42"
+        self.assertEqual(raid.parse_minutes(minutes), 42)
+        minutes = "42mn"
+        self.assertEqual(raid.parse_minutes(minutes), 42)
+        minutes = "42min"
+        self.assertEqual(raid.parse_minutes(minutes), 42)
+        minutes = "42minutes"
+        self.assertEqual(raid.parse_minutes(minutes), 42)
+        minutes = "-10"
+        self.assertEqual(raid.parse_minutes(minutes), None)
+        minutes = "70"
+        self.assertEqual(raid.parse_minutes(minutes), 70)

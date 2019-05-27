@@ -1,7 +1,24 @@
 from datetime import datetime
 from datetime import timedelta
+import re
 
-raid_date_format = ['%Hh%M', '@%Hh%M', '%M', '%Mmn', '%Mmin', '%Mminutes']
+raid_date_format = [
+    {
+        'format': '%Hh%M',
+        'is_at_time': False
+    }, {
+        'format': '@%Hh%M',
+        'is_at_time': True
+    }, {
+        'format': '%H:%M',
+        'is_at_time': False
+    }, {
+        'format': '@%H:%M',
+        'is_at_time': True
+    }
+]
+
+minutes_regex = "\d+"
 
 
 def get_raid_hours(time, raid_duration, message_date):
@@ -15,37 +32,49 @@ def get_raid_hours(time, raid_duration, message_date):
     :param message_date: time the raid command was issued
     :return: starttime: time, endtime: time
     """
-
-    is_at_time = '@' in time
-    is_minutes_time = 'h' not in time
-
-    raid_time = try_parsing_date(time)
+    raid_time, is_at_time = try_parsing_date(time)
 
     if raid_time is None:
-        return None
+        minutes = int(parse_minutes(time))
+        if minutes is not None:
+            endtime = message_date + timedelta(minutes=minutes)
+            return message_date.time(), endtime.time()
+        else:
+            return None
 
     if is_at_time:
         starttime = raid_time
         endtime = raid_time + timedelta(minutes=raid_duration)
     else:
-        if is_minutes_time:
-            minutes = raid_time.minute
-            starttime = message_date
-            endtime = message_date + timedelta(minutes=minutes)
-        else:  # Todo: might be not useful with the minutes remaining command
-            starttime = raid_time - timedelta(minutes=raid_duration)
-            endtime = raid_time
+        # Todo: might be not useful with the minutes remaining command
+        starttime = message_date
+        endtime = raid_time
 
     return starttime.time(), endtime.time()
 
 
-def try_parsing_date(text):
+def try_parsing_date(raid_command):
     for fmt in raid_date_format:
         try:
-            return datetime.strptime(text, fmt)
+            return datetime.strptime(raid_command, fmt['format']), fmt['is_at_time']
         except ValueError:
             pass
-    return None
+    return None, None
+
+
+def parse_minutes(raid_command):
+    """
+    Because we use match, it works only if the string starts with a number
+    :return: minutes as an integer
+    """
+    matcher = re.match(minutes_regex, raid_command)
+    if matcher is None:
+        return None
+    minutes = int(matcher.group(0))
+    if minutes > 0:
+        return minutes
+    else:
+        return None
 
 
 def clean_raid_command(command):

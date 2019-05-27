@@ -21,6 +21,7 @@ client = discord.Client()
 is_connected = False
 
 MAX_MESSAGE_SIZE = 2000
+paris_tz = pytz.timezone('Europe/Paris')
 
 ddb_list = {'timeouts': {}, 'messages':{}}
 
@@ -126,7 +127,7 @@ LIST pour avoir la liste des arènes reconnues'''
                 gym_data = gym_data[0]
 
             raid_hour = words[-1]
-            message_creation_date_localtz = pytz.utc.localize(message.created_at).astimezone(pytz.timezone('Europe/Paris'))
+            message_creation_date_localtz = pytz.utc.localize(message.created_at).astimezone(paris_tz)
             starttime, endtime = get_raid_hours(raid_hour, int(conf['raid_duration']), message_creation_date_localtz)
             if starttime is None or endtime is None:
                 message_to_send += 'Heure "{0}" incorrecte (format 10:30, 10h30,' \
