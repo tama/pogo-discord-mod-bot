@@ -37,20 +37,21 @@ class TestRaidCreation(unittest.TestCase):
 
     def test_raid_end_time(self):
         hour = "20h45"
-        self.assertEqual(raid.get_raid_hours(hour, 45, now), (now.time(), time(20, 45)))
+        self.assertEqual(raid.get_raid_hours(hour, 45, now), (time(20, 0), time(20, 45)))
         hour = "9h22"
-        self.assertEqual(raid.get_raid_hours(hour, 10, now), (now.time(), time(9, 22)))
+        self.assertEqual(raid.get_raid_hours(hour, 10, now), (time(9, 12), time(9, 22)))
         hour = "9:22"
-        self.assertEqual(raid.get_raid_hours(hour, 10, now), (now.time(), time(9, 22)))
+        self.assertEqual(raid.get_raid_hours(hour, 10, now), (time(9, 12), time(9, 22)))
         hour = "42"
         end_time = (now + timedelta(minutes=42)).time()
-        self.assertEqual(raid.get_raid_hours(hour, 10, now), (now.time(), end_time), "no suffix")
+        start_time = (now + timedelta(minutes=32)).time()
+        self.assertEqual(raid.get_raid_hours(hour, 10, now), (start_time, end_time), "no suffix")
         hour = "42mn"
-        self.assertEqual(raid.get_raid_hours(hour, 10, now), (now.time(), end_time), "mn")
+        self.assertEqual(raid.get_raid_hours(hour, 10, now), (start_time, end_time), "mn")
         hour = "42min"
-        self.assertEqual(raid.get_raid_hours(hour, 10, now), (now.time(), end_time), "min")
+        self.assertEqual(raid.get_raid_hours(hour, 10, now), (start_time, end_time), "min")
         hour = "42minutes"
-        self.assertEqual(raid.get_raid_hours(hour, 10, now), (now.time(), end_time), "minutes")
+        self.assertEqual(raid.get_raid_hours(hour, 10, now), (start_time, end_time), "minutes")
 
     def test_format_date_hour(self):
         hours = "10h11"

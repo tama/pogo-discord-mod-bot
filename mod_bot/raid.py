@@ -38,7 +38,7 @@ def get_raid_hours(time, raid_duration, message_date):
         minutes = int(parse_minutes(time))
         if minutes is not None:
             endtime = message_date + timedelta(minutes=minutes)
-            return message_date.time(), endtime.time()
+            return (endtime - timedelta(minutes=raid_duration)).time(), endtime.time()
         else:
             return None
 
@@ -47,7 +47,7 @@ def get_raid_hours(time, raid_duration, message_date):
         endtime = raid_time + timedelta(minutes=raid_duration)
     else:
         # Todo: might be not useful with the minutes remaining command
-        starttime = message_date
+        starttime = raid_time - timedelta(minutes=raid_duration)
         endtime = raid_time
 
     return starttime.time(), endtime.time()
