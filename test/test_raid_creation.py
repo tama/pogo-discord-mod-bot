@@ -45,7 +45,7 @@ class TestRaidCreation(unittest.TestCase):
         hour = "42"
         end_time = (now + timedelta(minutes=42)).time()
         start_time = (now + timedelta(minutes=32)).time()
-        self.assertEqual(raid.get_raid_hours(hour, 10, now), (start_time, end_time), "no suffix")
+        self.assertEqual(raid.get_raid_hours(hour, 10, now), (None, None), "no suffix")
         hour = "42mn"
         self.assertEqual(raid.get_raid_hours(hour, 10, now), (start_time, end_time), "mn")
         hour = "42min"
@@ -69,7 +69,7 @@ class TestRaidCreation(unittest.TestCase):
 
     def test_parse_minutes(self):
         minutes = "42"
-        self.assertEqual(raid.parse_minutes(minutes), 42)
+        self.assertEqual(raid.parse_minutes(minutes), None)
         minutes = "42mn"
         self.assertEqual(raid.parse_minutes(minutes), 42)
         minutes = "42min"
@@ -78,5 +78,7 @@ class TestRaidCreation(unittest.TestCase):
         self.assertEqual(raid.parse_minutes(minutes), 42)
         minutes = "-10"
         self.assertEqual(raid.parse_minutes(minutes), None)
-        minutes = "70"
+        minutes = "70min"
         self.assertEqual(raid.parse_minutes(minutes), 70)
+        minutes = "70sausages"
+        self.assertEqual(raid.parse_minutes(minutes), None, "can't put sausages in the mix")

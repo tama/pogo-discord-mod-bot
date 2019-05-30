@@ -18,7 +18,7 @@ raid_date_format = [
     }
 ]
 
-minutes_regex = "\d+"
+minutes_regex = "\d+(mn|min|minutes)"
 
 
 def get_raid_hours(time, raid_duration, message_date):
@@ -35,12 +35,12 @@ def get_raid_hours(time, raid_duration, message_date):
     raid_time, is_at_time = try_parsing_date(time)
 
     if raid_time is None:
-        minutes = int(parse_minutes(time))
+        minutes = parse_minutes(time)
         if minutes is not None:
             endtime = message_date + timedelta(minutes=minutes)
             return (endtime - timedelta(minutes=raid_duration)).time(), endtime.time()
         else:
-            return None
+            return None, None
 
     if is_at_time:
         starttime = raid_time
@@ -70,7 +70,7 @@ def parse_minutes(raid_command):
     matcher = re.match(minutes_regex, raid_command)
     if matcher is None:
         return None
-    minutes = int(matcher.group(0))
+    minutes = int(re.match("\d+", matcher.group(0)).group(0))
     if minutes > 0:
         return minutes
     else:
