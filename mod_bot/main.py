@@ -114,13 +114,13 @@ LIST pour avoir la liste des arènes reconnues'''
             elif len(gym_data) > 10:
                 message_to_send = "L'arène n'a pas pu être trouvée\n"
                 message_to_send += "La requête n'est pas assez spécifique, {0} résultats possibles\n".format(len(gym_data))
-                message_to_send += "Veuillez préciser votre recherche, utilisez `LIST` pour trouver votre arène"
+                message_to_send += "Veuillez préciser votre recherche, utilisez `LIST` pour trouver votre arène\n"
                 isOk = False
                 should_delete = False
             elif len(gym_data) >= 2:
                 message_to_send = "L'arène n'a pas pu être trouvée\n"
                 message_to_send += "Vouliez vous dire l'un des choix suivants?\n"
-                message_to_send += ", ".join(map(lambda x: x[1], gym_data))
+                message_to_send += ", ".join(map(lambda x: x[1], gym_data)) + "\n"
                 isOk = False
                 should_delete = False
             else:
@@ -130,8 +130,8 @@ LIST pour avoir la liste des arènes reconnues'''
             message_creation_date_localtz = pytz.utc.localize(message.created_at).astimezone(paris_tz)
             starttime, endtime = get_raid_hours(raid_hour, int(conf['raid_duration']), message_creation_date_localtz)
             if starttime is None or endtime is None:
-                message_to_send += 'Heure "{0}" incorrecte (format 10:30, 10h30,' \
-                                   ' ou @10h30, ou 30, 30mn, 30min, 30minutes)'.format(raid_hour)
+                message_to_send += 'Heure "{0}" incorrecte, formats possibles: 10:30, 10h30,' \
+                                   ' @10h30, 30mn, 30min, 30minutes)\n'.format(raid_hour)
                 isOk = False
 
             if isOk is True:
