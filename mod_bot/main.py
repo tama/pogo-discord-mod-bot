@@ -7,7 +7,6 @@ import datetime
 import json
 import os
 import pickle
-import re
 import time
 
 import discord
@@ -16,12 +15,13 @@ import pytz
 import roulette
 from gym import load_gyms, get_approx_name
 
-from raid import clean_raid_command
+from raid import clean_raid_command, get_raid_hours
 
 client = discord.Client()
 is_connected = False
 
 MAX_MESSAGE_SIZE = 2000
+paris_tz = pytz.timezone('Europe/Paris')
 
 ddb_list = {'timeouts': {}, 'messages':{}}
 
@@ -115,43 +115,29 @@ LIST pour avoir la liste des arènes reconnues'''
             elif len(gym_data) > 10:
                 message_to_send = "L'arène n'a pas pu être trouvée\n"
                 message_to_send += "La requête n'est pas assez spécifique, {0} résultats possibles\n".format(len(gym_data))
-                message_to_send += "Veuillez préciser votre recherche, utilisez `LIST` pour trouver votre arène"
+                message_to_send += "Veuillez préciser votre recherche, utilisez `LIST` pour trouver votre arène\n"
                 isOk = False
                 should_delete = False
             elif len(gym_data) >= 2:
                 message_to_send = "L'arène n'a pas pu être trouvée\n"
                 message_to_send += "Vouliez vous dire l'un des choix suivants?\n"
-                message_to_send += ", ".join(map(lambda x: x[1], gym_data))
+                message_to_send += ", ".join(map(lambda x: x[1], gym_data)) + "\n"
                 isOk = False
                 should_delete = False
             else:
                 gym_data = gym_data[0]
 
-            if isOk is True:
-                hour_pattern = re.compile("@*((0*[0-9])|(1[0-9])|(2[0-3]))[:hH]([0-5][0-9])")
-                end_hour = words[-1]
-                m = hour_pattern.match(end_hour)
-                if m is None:
-                    message_to_send += 'Heure "{0}" incorrecte (format 10:30, 10h30, ou @10h30)'.format(end_hour)
-                    isOk = False
+            raid_hour = words[-1]
+            message_creation_date_localtz = pytz.utc.localize(message.created_at).astimezone(paris_tz)
+            starttime, endtime = get_raid_hours(raid_hour, int(conf['raid_duration']), message_creation_date_localtz)
+            if starttime is None or endtime is None:
+                message_to_send += 'Heure "{0}" incorrecte, formats possibles: 10:30, 10h30,' \
+                                   ' @10h30, 30mn, 30min, 30minutes)\n'.format(raid_hour)
+                isOk = False
 
             if isOk is True:
-                end_hour = end_hour.replace(':', 'h').lower()
-                h = end_hour.replace('@', '').split('h')[0]
-                if end_hour[0] == '@':
-                    # Heure de pop, calcule l'heure de fin
-                    pop_hour = ('0' if int(h) < 10 and len(h) < 2 else '') + end_hour[1:]
-                    hend = int(pop_hour.split('h')[0])
-                    mend = int(pop_hour.split('h')[1])
-                    endtime = add_minutes(hend, mend, int(conf["raid_duration"]))
-                    end_hour = "{0:02d}h{1:02d}".format(endtime[0], endtime[1])
-                else:
-                    end_hour = ('0' if int(h) < 10 and len(h) < 2 else '') + end_hour
-                    hend = int(end_hour.split('h')[0])
-                    mend = int(end_hour.split('h')[1])
-                    starttime = add_minutes(hend, mend, -int(conf["raid_duration"]))
-                    pop_hour = "{0:02d}h{1:02d}".format(starttime[0], starttime[1])
-
+                pop_hour = starttime.strftime('%Hh%M')
+                end_hour = endtime.strftime('%Hh%M')
                 should_delete = False
                 channel_name = "{0}-{1}-fin{2}".format(poke, gym_data[0], end_hour)
 
