@@ -106,7 +106,7 @@ LIST pour avoir la liste des arènes reconnues'''
                 if gym_name not in gym_list:
                     gym_data = get_approx_name(gym_name, gym_list)
                 else:
-                    gym_data = list(gym_list[gym_name])
+                    gym_data = [gym_list[gym_name]]
 
             if len(gym_data) == 0:
                 message_to_send = 'Arène "{0}" inconnue\n'.format(gym_name)
