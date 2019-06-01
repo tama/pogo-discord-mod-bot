@@ -2,34 +2,27 @@
 # coding: utf-8
 
 import asyncio
-import discord
-
-import re
+import collections
 import datetime
-import pytz
-
+import json
 import os
 import pickle
-import collections
-
-import Levenshtein
 import time
 
-from mod_bot import roulette
+import discord
+import pytz
+
+import roulette
+from gym import load_gyms, get_approx_name
+
+from raid import clean_raid_command, get_raid_hours
 
 client = discord.Client()
 is_connected = False
 
-listen_to = {
-    353624316585443329: 422859285622685708, #Sevres
-    322379168048349185: 426716226274983957, #Boulbi
-    353176435026034690: 441684675690364938, #Serveur de test
-    387160186424655872: 462991996131344405  #Paris 16
-}
-
 MAX_MESSAGE_SIZE = 2000
+paris_tz = pytz.timezone('Europe/Paris')
 
-conf = {}
 ddb_list = {'timeouts': {}, 'messages':{}}
 
 def get_token():
@@ -54,12 +47,13 @@ def add_minutes(hstart, mstart, mn):
 async def on_ready():
     print("on_ready")
     print(conf)
-    is_connected = True
+
 
 @client.event
 async def on_message(message):
     muted_users = load("muted")
     words = message.content.split(' ')
+    raid_words = clean_raid_command(words)
 
     if str(message.guild.id) == '322379168048349185' and message.author.name in ['tama', 'Killerlolo']:
         if words[0] == '!mute':
@@ -81,8 +75,9 @@ async def on_message(message):
         else:
             del(muted_users[message.author.name])
             save("muted", muted_users)
-    
-    if message.channel.guild.id in listen_to and listen_to[message.channel.guild.id] == message.channel.id and message.author.name != 'modbot':
+
+    guild_id = message.channel.guild.id
+    if is_listen_to(guild_id) and conf["listen_to"][str(guild_id)]["channel"] == str(message.channel.id) and message.author.name != 'modbot':
         should_delete = True
         message_to_send = ''
 
@@ -90,15 +85,14 @@ async def on_message(message):
 
         if message.content == "LIST":
             should_delete = False
-            message_to_send += "```"
             od = collections.OrderedDict(sorted(gym_list.items()))
             for k in od:
                 message_to_send += k + "\n"
-            message_to_send += "```"
             
-        if words[0] == "!raid":
+        if raid_words[0] == "!raid":
             isOk = True
-            
+
+            words = raid_words
             if len(words) < 3:
                 message_to_send = '''Commande incorrecte.
 Format des messages : !raid *pokemon* *arene* *heureDeFin* (exemple : !raid latias tour tf1 13:15)
@@ -112,38 +106,38 @@ LIST pour avoir la liste des arènes reconnues'''
                 if gym_name not in gym_list:
                     gym_data = get_approx_name(gym_name, gym_list)
                 else:
-                    gym_data = gym_list[gym_name]
+                    gym_data = list(gym_list[gym_name])
 
-            if gym_data is None:
+            if len(gym_data) == 0:
                 message_to_send = 'Arène "{0}" inconnue\n'.format(gym_name)
                 isOk = False
                 should_delete = False
-                
-            if isOk is True:
-                hour_pattern = re.compile("@*((0*[0-9])|(1[0-9])|(2[0-3]))[:hH]([0-5][0-9])")
-                end_hour = words[-1]
-                m = hour_pattern.match(end_hour)
-                if m is None:
-                    message_to_send += 'Heure "{0}" incorrecte (format 10:30, 10h30, ou @10h30)'.format(end_hour)
-                    isOk = False
+            elif len(gym_data) > 10:
+                message_to_send = "L'arène n'a pas pu être trouvée\n"
+                message_to_send += "La requête n'est pas assez spécifique, {0} résultats possibles\n".format(len(gym_data))
+                message_to_send += "Veuillez préciser votre recherche, utilisez `LIST` pour trouver votre arène\n"
+                isOk = False
+                should_delete = False
+            elif len(gym_data) >= 2:
+                message_to_send = "L'arène n'a pas pu être trouvée\n"
+                message_to_send += "Vouliez vous dire l'un des choix suivants?\n"
+                message_to_send += ", ".join(map(lambda x: x[1], gym_data)) + "\n"
+                isOk = False
+                should_delete = False
+            else:
+                gym_data = gym_data[0]
+
+            raid_hour = words[-1]
+            message_creation_date_localtz = pytz.utc.localize(message.created_at).astimezone(paris_tz)
+            starttime, endtime = get_raid_hours(raid_hour, int(conf['raid_duration']), message_creation_date_localtz)
+            if starttime is None or endtime is None:
+                message_to_send += 'Heure "{0}" incorrecte, formats possibles: 10:30, 10h30,' \
+                                   ' @10h30, 30mn, 30min, 30minutes)\n'.format(raid_hour)
+                isOk = False
 
             if isOk is True:
-                end_hour = end_hour.replace(':', 'h').lower()
-                h = end_hour.replace('@', '').split('h')[0]
-                if end_hour[0] == '@':
-                    # Heure de pop, calcule l'heure de fin
-                    pop_hour = ('0' if int(h) < 10 and len(h) < 2 else '') + end_hour[1:]
-                    hend = int(pop_hour.split('h')[0])
-                    mend = int(pop_hour.split('h')[1])
-                    endtime = add_minutes(hend, mend, int(conf["raid_duration"]))
-                    end_hour = "{0:02d}h{1:02d}".format(endtime[0], endtime[1])
-                else:
-                    end_hour = ('0' if int(h) < 10 and len(h) < 2 else '') + end_hour
-                    hend = int(end_hour.split('h')[0])
-                    mend = int(end_hour.split('h')[1])
-                    starttime = add_minutes(hend, mend, -int(conf["raid_duration"]))
-                    pop_hour = "{0:02d}h{1:02d}".format(starttime[0], starttime[1])
-
+                pop_hour = starttime.strftime('%Hh%M')
+                end_hour = endtime.strftime('%Hh%M')
                 should_delete = False
                 channel_name = "{0}-{1}-fin{2}".format(poke, gym_data[0], end_hour)
 
@@ -199,7 +193,7 @@ LIST pour avoir la liste des arènes reconnues'''
         return
 
     if words[0] == '!reg' and len(words) > 1:
-        ppath = '/home/tama/bot/data/{0}/player_data'.format(message.channel.guild.id)
+        ppath = conf['filepath'] + '/{0}/player_data'.format(message.channel.guild.id)
         if os.path.exists(ppath):
             d = load(ppath)
         else:
@@ -243,54 +237,9 @@ def get_similar_channel(server, gym_name, end_hour):
     # Not found.
     return None
 
-def get_approx_name(gym_name, gym_list):
-    result = None
-    try:
-        gn = gym_name.lower()
-        gn = gn.replace('é', 'e').replace('è', 'e').replace('ê', 'e').replace('à', 'a').replace('â', 'a')
 
-        # Try autocomplete
-        gyms = list(gym_list.keys())
-        candidates = [x for x in gyms if gym_name.lower() in x]
-        if len(candidates) == 1:
-            result = gym_list[candidates[0]]
-        else:
-            candidates = [x for x in gyms if gn in x.lower()]
-            if len(candidates) == 1:
-                result = gym_list[candidates[0]]
-        
-        # Try Levenshtein distance
-        if result is None:
-            for k,v in gym_list.items():
-                if gn == k:
-                    result = v
-                    break
-
-                d = Levenshtein.distance(gn, k)
-                if d < 3:
-                    result = v
-                    break
-    except Exception as e:
-        # Failed.
-        print(e)
-        pass
-    return result
-
-
-def load_gyms(guild_id, file_path):
-    gym_list = {}
-    lines = [line.strip() for line in open("{0}/{1}/gym_with_coords".format(file_path, guild_id), "r", encoding="utf8")]
-    for l in lines:
-        sections = l.split(';')
-        short_name = sections[0]
-        full_name = sections[3]
-        address = sections[4] if len(sections) > 4 else None
-        ex = len(sections) > 5 and sections[5] == 'EX'
-        gym_list[full_name] = (short_name, full_name, address, sections[1], sections[2], ex)
-    return gym_list
-    
 async def run(token):
-    await client.login(token)
+    await client.login(token.strip())
     await client.connect()
 
 async def modtask():
@@ -305,7 +254,7 @@ async def modtask():
             for channel in list(server.channels):
                 if 'fin' not in channel.name or (channel.topic is not None and len(channel.topic) > 0):
                     continue
-                
+
                 end_time_str = channel.name.split('-')[-1].replace('fin', '')
                 try:
                     etime = datetime.datetime.strptime(end_time_str, '%Hh%M')
@@ -318,6 +267,7 @@ async def modtask():
                 
                 last_message_timestamp = None
                 last_modbot_tz = None
+                last_message_tz = None
                 
                 # Recherche dans les 5 derniers messages le dernier ne
                 # provenant pas de modbot
@@ -337,6 +287,7 @@ async def modtask():
                     if last_modbot_tz is None and message_ts > end_time_tz:
                         #print("MOD")
                         last_modbot_tz = message_ts
+
 
                 if last_message_tz is None:
                     continue
@@ -366,7 +317,7 @@ async def modtask():
 @client.event
 async def on_reaction_add(reaction, user):
     global ddb_list
-    
+
     if str(reaction.message.guild.id) != '322379168048349185':
         return
 
@@ -410,7 +361,11 @@ async def on_reaction_add(reaction, user):
         ddb_list = {'messages': {}, 'timeouts':{}}
 
 def load(f):
-    return pickle.load(open(f, "rb"))
+    try:
+        muted = pickle.load(open(f, "rb"))
+    except EOFError:
+        muted = {}
+    return muted
 
 def save(f, data):
     pickle.dump(data, open(f, "wb"))
@@ -420,19 +375,19 @@ def get_local_time(dt, tz = None):
         tz = pytz.timezone('Europe/Paris')
     return pytz.utc.localize(dt, is_dst=None).astimezone(tz)
 
+
 def read_config():
     global conf
     print("reading configuration")
-    lines = [line.strip() for line in open("config", "r")]
-    conf = {}
-    for line in lines:
-        key = line.split("=")[0]
-        value = "=".join(line.split("=")[1:])
-        conf[key] = value
+    with open('config.json', 'r') as f:
+        conf = json.load(f)
     print("Done")
     print(conf)
 
-        
+def is_listen_to(id):
+    return str(id) in conf["listen_to"]
+
+
 if __name__ == '__main__':
     token = get_token()
     if token is not None:

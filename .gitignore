@@ -1,4 +1,10 @@
+muted
 .idea
 test/.cache
 test/__pycache__
 mod_bot/__pycache__
+dist
+pogo_mod_bot.egg-info
+src
+.cache
+.token
