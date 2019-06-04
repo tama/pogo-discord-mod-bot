@@ -1,3 +1,4 @@
+[![Build Status](https://travis-ci.org/tama/pogo-discord-mod-bot.svg?branch=master)](https://travis-ci.org/tama/pogo-discord-mod-bot)
 # pogo-discord-mod-bot
 Simple mod tasks on a (pokemon go related) discord server
 
