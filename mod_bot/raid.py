@@ -15,6 +15,12 @@ raid_date_format = [
     }, {
         'format': '@%H:%M',
         'is_at_time': True
+    }, {
+        'format': '@%Hh',
+        'is_at_time': True
+    }, {
+        'format': '%Hh',
+        'is_at_time': False
     }
 ]
 
