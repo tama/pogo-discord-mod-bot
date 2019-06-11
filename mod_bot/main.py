@@ -213,6 +213,24 @@ LIST pour avoir la liste des arènes reconnues'''
         await message.channel.edit(name=new_name)
         return
 
+    if words[0] == '!time' and len(words) > 1 and 'fin' in message.channel.name:
+        cwords = message.channel.name.split('-')
+        new_time = None
+        for fmt in ('%Hh%M', '%H:%M'):
+            try:
+                if new_time is None:
+                    new_time = datetime.datetime.strptime(words[1], fmt).time()
+            except ValueError:
+                pass
+        if new_time is not None:
+            new_name = '-'.join(cwords[:-1] + [new_time.strftime('fin%Hh%M')])
+            await message.channel.edit(name=new_name)
+            await message.channel.send('@here Heure de fin de raid mise à jour : ' + new_time.strftime('%Hh%M'))
+        else:
+            await message.channel.send('Format invalide ex: 14h17, 9:34')
+        return
+
+
 def get_similar_channel(server, gym_name, end_hour):
     tz = pytz.timezone('Europe/Paris')
     this_etime = datetime.datetime.strptime(end_hour, '%Hh%M')
