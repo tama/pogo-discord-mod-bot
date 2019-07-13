@@ -1,0 +1,12 @@
+{
+  "raid_duration": 45,
+  "delete_interval_after_warning": 5,
+  "warn_interval": 15,
+  "filepath": "/tmp/bot/data",
+  "listen_to" : {
+    "573519479334633472": {
+      "id": "PBL",
+      "channel": "573520359857324033"
+    }
+  }
+}
