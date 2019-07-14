@@ -4,17 +4,15 @@
 import asyncio
 import collections
 import datetime
-import json
 import os
 import pickle
 import time
 
 import discord
 import pytz
-
 import roulette
+from conf import read_config, get, set_key, dump
 from gym import load_gyms, get_approx_name
-
 from raid import clean_raid_command, get_raid_hours
 
 client = discord.Client()
@@ -45,17 +43,26 @@ def add_minutes(hstart, mstart, mn):
     
 @client.event
 async def on_ready():
+    global conf
+    conf = read_config('config.json')
     print("on_ready")
-    print(conf)
-
+    dump(conf)
 
 @client.event
 async def on_message(message):
-    muted_users = load("muted")
+    muted_users = {}
+    if os.path.exists("muted"):
+        muted_users = load("muted")
     words = message.content.split(' ')
     raid_words = clean_raid_command(words)
 
-    if str(message.guild.id) == '322379168048349185' and message.author.name in ['tama', 'Killerlolo']:
+    # Message information
+    author = message.author.name
+    cid = str(message.channel.id)
+    gid = str(message.channel.guild.id)
+
+    mute_can_use = get(gid, 'mute.can_use_command', conf)
+    if mute_can_use is not None and author in mute_can_use:
         if words[0] == '!mute':
             muted_until = int(time.time() + int(words[2]))
             muted_users[words[1]] = muted_until
@@ -67,21 +74,39 @@ async def on_message(message):
             save("muted", muted_users)
             return
 
-    if str(message.guild.id) == '322379168048349185' and message.author.name in muted_users:
-        if int(time.time()) < int(muted_users[message.author.name]):
-            print("muted until {0} (current {1})".format(muted_users[message.author.name], int(time.time()))) 
+    # Mod commands
+    roles = discord.utils.get(message.guild.members, name=message.author.name).roles
+    mod_roles = get(gid, 'mod.roles', conf).split(';')
+    is_mod = False
+    for r in roles:
+        if r.name in mod_roles:
+            is_mod = True
+            break
+
+    if is_mod is True:
+        if words[0] == "!setcfg" and len(words) > 2:
+            set_key(words[1], conf, gid, ' '.join(words[2:]))
+            return
+
+        if words[0] == "!getcfg" and len(words) > 1:
+            val = str(get(gid, words[1], conf))
+            await message.channel.send("{0} = {1}".format(words[1], val))
+            return
+
+    if gid == '322379168048349185' and author in muted_users:
+        if int(time.time()) < int(muted_users[author]):
+            print("muted until {0} (current {1})".format(muted_users[author], int(time.time()))) 
             await message.delete()
             return
         else:
-            del(muted_users[message.author.name])
+            del(muted_users[author])
             save("muted", muted_users)
 
-    guild_id = message.channel.guild.id
-    if is_listen_to(guild_id) and conf["listen_to"][str(guild_id)]["channel"] == str(message.channel.id) and message.author.name != 'modbot':
+    if is_listen_to(gid) and get(None, 'listen_to.{0}.channel'.format(gid), conf) == cid and author != 'modbot':
         should_delete = True
         message_to_send = ''
 
-        gym_list = load_gyms(message.channel.guild.id, conf["filepath"])
+        gym_list = load_gyms(gid, get(None, "filepath", conf))
 
         if message.content == "LIST":
             should_delete = False
@@ -129,7 +154,7 @@ LIST pour avoir la liste des arènes reconnues'''
 
             raid_hour = words[-1]
             message_creation_date_localtz = pytz.utc.localize(message.created_at).astimezone(paris_tz)
-            starttime, endtime = get_raid_hours(raid_hour, int(conf['raid_duration']), message_creation_date_localtz)
+            starttime, endtime = get_raid_hours(raid_hour, int(get(gid, 'raid_duration', conf)), message_creation_date_localtz)
             if starttime is None or endtime is None:
                 message_to_send += 'Heure "{0}" incorrecte, formats possibles: 10:30, 10h30,' \
                                    ' @10h30, 30mn, 30min, 30minutes)\n'.format(raid_hour)
@@ -193,7 +218,7 @@ LIST pour avoir la liste des arènes reconnues'''
         return
 
     if words[0] == '!reg' and len(words) > 1:
-        ppath = conf['filepath'] + '/{0}/player_data'.format(message.channel.guild.id)
+        ppath = '{0}/{1}/player_data'.format(get(None, 'filepath', conf), gid)
         if os.path.exists(ppath):
             d = load(ppath)
         else:
@@ -211,6 +236,23 @@ LIST pour avoir la liste des arènes reconnues'''
         pokemon_name = words[1].replace('é', 'e').replace('è', 'e').replace('ê', 'e').replace('à', 'a').replace('â', 'a')
         new_name = pokemon_name[:5] + '-' + '-'.join(cwords[-2:])
         await message.channel.edit(name=new_name)
+        return
+
+    if words[0] == '!time' and len(words) > 1 and 'fin' in message.channel.name:
+        cwords = message.channel.name.split('-')
+        new_time = None
+        for fmt in ('%Hh%M', '%H:%M'):
+            try:
+                if new_time is None:
+                    new_time = datetime.datetime.strptime(words[1], fmt).time()
+            except ValueError:
+                pass
+        if new_time is not None:
+            new_name = '-'.join(cwords[:-1] + [new_time.strftime('fin%Hh%M')])
+            await message.channel.edit(name=new_name)
+            await message.channel.send('@here Heure de fin de raid mise à jour : ' + new_time.strftime('%Hh%M'))
+        else:
+            await message.channel.send('Format invalide ex: 14h17, 9:34')
         return
 
 def get_similar_channel(server, gym_name, end_hour):
@@ -251,66 +293,82 @@ async def modtask():
         
 #        print("Doing mod tasks")
         for server in client.guilds:
+            warn_interval = int(get(server.id, "mod.warn_interval", conf))
+            delete_interval_after_warning = int(get(server.id, "mod.delete_interval_after_warning", conf))
+            listen_to = get(None, 'listen_to.{0}.channel'.format(server.id), conf)
+            clean_cmd_after = get(server.id, 'mod.delete_cmd_after', conf)
+
+#            print(warn_interval, delete_interval_after_warning, listen_to, clean_cmd_after)
+
             for channel in list(server.channels):
-                if 'fin' not in channel.name or (channel.topic is not None and len(channel.topic) > 0):
-                    continue
-
-                end_time_str = channel.name.split('-')[-1].replace('fin', '')
                 try:
-                    etime = datetime.datetime.strptime(end_time_str, '%Hh%M')
-                except:
-                    continue
-                
-                end_time = datetime.datetime(now.year, now.month, now.day, etime.hour, etime.minute)
-                end_time += datetime.timedelta(seconds = 60 * int(conf["warn_interval"]))
-                end_time_tz = tz.localize(end_time)
-                
-                last_message_timestamp = None
-                last_modbot_tz = None
-                last_message_tz = None
-                
-                # Recherche dans les 5 derniers messages le dernier ne
-                # provenant pas de modbot
-                last_message = None
-                last_message_tz = None
-                print(channel.name.encode())
-                async for message in channel.history(limit = 5):
-                    if last_message is None:
-                        last_message = message
-                        
-                    message_ts = get_local_time(message.created_at)
+                    if listen_to is not None and clean_cmd_after is not None and str(listen_to) == str(channel.id) :
+                        async for message in channel.history(limit = 10):
+                            time_delta = now_tz - get_local_time(message.created_at)
+                            if (time_delta > datetime.timedelta(seconds = 60 * int(clean_cmd_after))):
+                                await message.delete()
+
+                    if 'fin' not in channel.name or (channel.topic is not None and len(channel.topic) > 0):
+                        continue
+
+                    end_time_str = channel.name.split('-')[-1].replace('fin', '')
+                    try:
+                        etime = datetime.datetime.strptime(end_time_str, '%Hh%M')
+                    except:
+                        continue
                     
-                    if message.author.name != 'modbot':
-                        last_message_tz = message_ts
-                        break
+                    end_time = datetime.datetime(now.year, now.month, now.day, etime.hour, etime.minute)
+                    end_time += datetime.timedelta(seconds = 60 * warn_interval)
+                    end_time_tz = tz.localize(end_time)
+                    
+                    last_message_timestamp = None
+                    last_modbot_tz = None
+                    last_message_tz = None
+                    
+                    # Recherche dans les 5 derniers messages le dernier ne
+                    # provenant pas de modbot
+                    last_message = None
+                    last_message_tz = None
+                    #print(channel.name.encode())
+                    async for message in channel.history(limit = 5):
+                        if last_message is None:
+                            last_message = message
+                            
+                        message_ts = get_local_time(message.created_at)
+                        
+                        if message.author.name != 'modbot':
+                            last_message_tz = message_ts
+                            break
 
-                    if last_modbot_tz is None and message_ts > end_time_tz:
-                        #print("MOD")
-                        last_modbot_tz = message_ts
+                        if last_modbot_tz is None and message_ts > end_time_tz:
+                            #print("MOD")
+                            last_modbot_tz = message_ts
 
 
-                if last_message_tz is None:
-                    continue
+                    if last_message_tz is None:
+                        continue
 
-                if last_modbot_tz is not None:
-                    time_since_modbot = now_tz - last_modbot_tz
-                else:
-                    time_since_modbot = datetime.timedelta(seconds=0)
-    
-                time_delta = now_tz - last_message_tz
-                time_since_end = now_tz - end_time_tz
+                    if last_modbot_tz is not None:
+                        time_since_modbot = now_tz - last_modbot_tz
+                    else:
+                        time_since_modbot = datetime.timedelta(seconds=0)
+        
+                    time_delta = now_tz - last_message_tz
+                    time_since_end = now_tz - end_time_tz
 
-                #print("now = {0}, end_time = {1}, last_message = {2} ({3}), last_modbot = {4} ({5})".format(now_tz, end_time_tz, last_message_tz, time_delta, last_modbot_tz, time_since_modbot))
-                
-                if now_tz < end_time_tz:
-                    continue
+                    #print("now = {0}, end_time = {1}, last_message = {2} ({3}), last_modbot = {4} ({5})".format(now_tz, end_time_tz, last_message_tz, time_delta, last_modbot_tz, time_since_modbot))
+                    
+                    if now_tz < end_time_tz:
+                        continue
 
-                if time_since_modbot > datetime.timedelta(seconds = 60 * int(conf["delete_interval_after_warning"])):
-                    #print("DELETE {0}".format(channel.name.encode('utf8')))
-                    await channel.delete()  
-                elif time_delta > datetime.timedelta(seconds = 60 * int(conf["warn_interval"])) and (last_message.author.name != 'modbot' or last_modbot_tz is None):
-                    #print("Warning {0}".format(channel.name.encode('utf8')))
-                    await channel.send("Aucun message n'a été posté depuis plus de {0} minutes après la fin du raid, ce salon sera automatiquement archivé dans {1} minutes.\n**Si ce salon n'est pas destiné à être supprimé, veuillez contacter un modérateur/administrateur**".format(conf["warn_interval"], conf["delete_interval_after_warning"]))
+                    if time_since_modbot > datetime.timedelta(seconds = 60 * delete_interval_after_warning):
+                        #print("DELETE {0}".format(channel.name.encode('utf8')))
+                        await channel.delete()  
+                    elif time_delta > datetime.timedelta(seconds = 60 * warn_interval) and (last_message.author.name != 'modbot' or last_modbot_tz is None):
+                        #print("Warning {0}".format(channel.name.encode('utf8')))
+                        await channel.send("Aucun message n'a été posté depuis plus de {0} minutes après la fin du raid, ce salon sera automatiquement archivé dans {1} minutes.\n**Si ce salon n'est pas destiné à être supprimé, veuillez contacter un modérateur/administrateur**".format(warn_interval, delete_interval_after_warning))                    
+                except Exception as e:
+                    print(str(e))
 
         await asyncio.sleep(30)
 
@@ -375,22 +433,11 @@ def get_local_time(dt, tz = None):
         tz = pytz.timezone('Europe/Paris')
     return pytz.utc.localize(dt, is_dst=None).astimezone(tz)
 
-
-def read_config():
-    global conf
-    print("reading configuration")
-    with open('config.json', 'r') as f:
-        conf = json.load(f)
-    print("Done")
-    print(conf)
-
 def is_listen_to(id):
-    return str(id) in conf["listen_to"]
-
+    return get(None, 'listen_to.{0}'.format(id), conf) is not None
 
 if __name__ == '__main__':
     token = get_token()
     if token is not None:
         loop = asyncio.get_event_loop()
-        read_config()
         loop.run_until_complete(asyncio.gather(run(token), modtask()))
