@@ -187,7 +187,7 @@ Utilisez `LIST` pour connaître les arènes disponibles.'''
                 raid_info = raid_info.replace('[[lat]]', gym_data[3])
                 raid_info = raid_info.replace('[[lng]]', gym_data[4])
                 if gym_data[5] is True:
-                    raid_info = raid_info + "**Eligible Raid EX** : Oui"
+                    raid_info = raid_info + "\n**Cette arène est éligible pour un Raid EX.**"
                 info_msg = await new_channel.send(raid_info)
 
                 await info_msg.pin()
