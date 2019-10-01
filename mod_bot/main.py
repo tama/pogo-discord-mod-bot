@@ -120,8 +120,8 @@ async def on_message(message):
             words = raid_words
             if len(words) < 3:
                 message_to_send = '''Commande incorrecte.
-Format des messages : !raid *pokemon* *arene* *heureDeFin* (exemple : !raid latias tour tf1 13:15)
-LIST pour avoir la liste des arènes reconnues'''
+Format attendu : !raid *pokemon* *arene* *heureDeFin* (Exemple : !raid latias tour tf1 13:15)
+Utilisez `LIST` pour connaître les arènes disponibles.'''
                 isOk = False
 
             poke = words[1][:5].lower()
@@ -134,18 +134,18 @@ LIST pour avoir la liste des arènes reconnues'''
                     gym_data = [gym_list[gym_name]]
 
             if len(gym_data) == 0:
-                message_to_send = 'Arène "{0}" inconnue\n'.format(gym_name)
+                message_to_send = 'Arène "{0}" introuvable.\n'.format(gym_name)
                 isOk = False
                 should_delete = False
             elif len(gym_data) > 10:
-                message_to_send = "L'arène n'a pas pu être trouvée\n"
-                message_to_send += "La requête n'est pas assez spécifique, {0} résultats possibles\n".format(len(gym_data))
-                message_to_send += "Veuillez préciser votre recherche, utilisez `LIST` pour trouver votre arène\n"
+                message_to_send = "**Arène introuvable.**\n"
+                message_to_send += "La requête n'est pas assez spécifique : il existe {0} résultats possibles.\n".format(len(gym_data))
+                message_to_send += "-> Veuillez préciser votre recherche. *Utilisez `LIST` pour connaître les arènes disponibles.*\n"
                 isOk = False
                 should_delete = False
             elif len(gym_data) >= 2:
-                message_to_send = "L'arène n'a pas pu être trouvée\n"
-                message_to_send += "Vouliez vous dire l'un des choix suivants?\n"
+                message_to_send = "**Arène introuvable.**\n"
+                message_to_send += "-> Vouliez-vous dire : "
                 message_to_send += ", ".join(map(lambda x: x[1], gym_data)) + "\n"
                 isOk = False
                 should_delete = False
@@ -156,8 +156,8 @@ LIST pour avoir la liste des arènes reconnues'''
             message_creation_date_localtz = pytz.utc.localize(message.created_at).astimezone(paris_tz)
             starttime, endtime = get_raid_hours(raid_hour, int(get(gid, 'raid_duration', conf)), message_creation_date_localtz)
             if starttime is None or endtime is None:
-                message_to_send += 'Heure "{0}" incorrecte, formats possibles: 10:30, 10h30,' \
-                                   ' @10h30, 30mn, 30min, 30minutes)\n'.format(raid_hour)
+                message_to_send += 'Horaire "{0}" incorrect. *Formats possibles : 10:30, 10h30,' \
+                                   ' @10:30, @10h30, 30mn, 30min, 30minutes.*\n'.format(raid_hour)
                 isOk = False
 
             if isOk is True:
@@ -168,7 +168,7 @@ LIST pour avoir la liste des arènes reconnues'''
 
                 similar_channel = get_similar_channel(message.channel.guild, gym_data[0], end_hour)
                 if similar_channel is not None:
-                    await message.channel.send("Un salon a déjà été crée pour ce raid : <#{0}>".format(similar_channel.id))
+                    await message.channel.send("Un salon a déjà été créé pour ce raid : <#{0}>".format(similar_channel.id))
                     return
                 
                 new_channel = await message.channel.guild.create_text_channel(channel_name)
@@ -177,7 +177,7 @@ LIST pour avoir la liste des arènes reconnues'''
 **Pokémon** : [[POKEMON]]
 **Arène** : [[ARENE]]
 **Adresse** : [[ADDRESS]]
-**Google maps** : <https://maps.google.com/?daddr=[[lat]],[[lng]]>
+**Google Maps** : <https://maps.google.com/?daddr=[[lat]],[[lng]]>
 '''
                 raid_info = raid_info.replace('[[POP_HOUR]]', pop_hour)
                 raid_info = raid_info.replace('[[END_HOUR]]', end_hour)
@@ -187,7 +187,7 @@ LIST pour avoir la liste des arènes reconnues'''
                 raid_info = raid_info.replace('[[lat]]', gym_data[3])
                 raid_info = raid_info.replace('[[lng]]', gym_data[4])
                 if gym_data[5] is True:
-                    raid_info = raid_info + "\n\n**Cette arène est éligible pour un raid EX**"
+                    raid_info = raid_info + "\n**Cette arène est éligible pour un Raid EX.**"
                 info_msg = await new_channel.send(raid_info)
 
                 await info_msg.pin()
@@ -252,7 +252,7 @@ LIST pour avoir la liste des arènes reconnues'''
             await message.channel.edit(name=new_name)
             await message.channel.send('@here Heure de fin de raid mise à jour : ' + new_time.strftime('%Hh%M'))
         else:
-            await message.channel.send('Format invalide ex: 14h17, 9:34')
+            await message.channel.send('Horaire incorrect. *Formats possibles : 14h17, 9:34.*')
         return
 
 def get_similar_channel(server, gym_name, end_hour):
@@ -366,7 +366,7 @@ async def modtask():
                         await channel.delete()  
                     elif time_delta > datetime.timedelta(seconds = 60 * warn_interval) and (last_message.author.name != 'modbot' or last_modbot_tz is None):
                         #print("Warning {0}".format(channel.name.encode('utf8')))
-                        await channel.send("Aucun message n'a été posté depuis plus de {0} minutes après la fin du raid, ce salon sera automatiquement archivé dans {1} minutes.\n**Si ce salon n'est pas destiné à être supprimé, veuillez contacter un modérateur/administrateur**".format(warn_interval, delete_interval_after_warning))                    
+                        await channel.send("Aucun message n'a été posté depuis {0} minutes après la fin du raid. Ce salon sera automatiquement archivé dans {1} minutes.\n**Si ce salon n'est pas destiné à être supprimé, veuillez contacter un modérateur/administrateur.**".format(warn_interval, delete_interval_after_warning))                    
                 except Exception as e:
                     print(str(e))
 
@@ -411,7 +411,7 @@ async def on_reaction_add(reaction, user):
             if user.name is 'Fako':
                 muted_time = muted_time * 2
         maxTimeout = 0
-        await reaction.message.channel.send('[**Roulette DDB**] {0} ne peut plus poster pendant {1} secondes ({2})'.format(who, muted_time, user.name))
+        await reaction.message.channel.send('[**Roulette DDB**] {0} ne peut plus poster pendant {1} secondes. ({2})'.format(who, muted_time, user.name))
         if who in muted_users:
             maxTimeout = muted_users[who]
         muted_users[who] = max(maxTimeout, time.time() + muted_time)
