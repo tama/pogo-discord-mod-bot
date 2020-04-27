@@ -4,15 +4,17 @@
 import asyncio
 import collections
 import datetime
+import json
 import os
 import pickle
 import time
 
 import discord
 import pytz
+
 import roulette
-from conf import read_config, get, set_key, dump
 from gym import load_gyms, get_approx_name
+from conf import read_config, get, has_key, set_key, dump
 from raid import clean_raid_command, get_raid_hours
 
 client = discord.Client()
@@ -172,6 +174,16 @@ LIST pour avoir la liste des arènes reconnues'''
                     return
                 
                 new_channel = await message.channel.guild.create_text_channel(channel_name)
+
+                # Get banner (message posted before the listing)
+                banner_msg_file_loc = get(gid, 'banner_msg_file', conf)
+                if banner_msg_file_loc is None:
+                    banner_msg_file_loc = get(None, 'banner_msg_file', conf)
+                if banner_msg_file_loc is not None:
+                    with open(banner_msg_file_loc, "r", encoding="utf8") as bf:
+                        banner_msg = bf.read()
+                        await new_channel.send(banner_msg)
+                
                 raid_info = '''
 **Horaires** : [[POP_HOUR]] -> [[END_HOUR]]
 **Pokémon** : [[POKEMON]]
