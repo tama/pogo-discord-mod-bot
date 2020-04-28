@@ -87,12 +87,16 @@ async def on_message(message):
 
     if is_mod is True:
         if words[0] == "!setcfg" and len(words) > 2:
-            set_key(words[1], conf, gid, ' '.join(words[2:]))
+            scope = words[2].split(".")[0]
+            if scope != "private":
+                set_key(words[1], conf, gid, ' '.join(words[2:]))
             return
 
         if words[0] == "!getcfg" and len(words) > 1:
-            val = str(get(gid, words[1], conf))
-            await message.channel.send("{0} = {1}".format(words[1], val))
+            scope = words[2].split(".")[0]
+            if scope != "private":
+                val = str(get(gid, words[1], conf))
+                await message.channel.send("{0} = {1}".format(words[1], val))
             return
 
     if gid == '322379168048349185' and author in muted_users:
@@ -176,9 +180,9 @@ LIST pour avoir la liste des arènes reconnues'''
                 new_channel = await message.channel.guild.create_text_channel(channel_name)
 
                 # Get banner (message posted before the listing)
-                banner_msg_file_loc = get(gid, 'banner_msg_file', conf)
+                banner_msg_file_loc = get(gid, 'private.banner_msg_file', conf)
                 if banner_msg_file_loc is None:
-                    banner_msg_file_loc = get(None, 'banner_msg_file', conf)
+                    banner_msg_file_loc = get(None, 'private.banner_msg_file', conf)
                 if banner_msg_file_loc is not None:
                     with open(banner_msg_file_loc, "r", encoding="utf8") as bf:
                         banner_msg = bf.read()
