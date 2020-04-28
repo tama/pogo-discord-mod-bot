@@ -87,13 +87,13 @@ async def on_message(message):
 
     if is_mod is True:
         if words[0] == "!setcfg" and len(words) > 2:
-            scope = words[2].split(".")[0]
+            scope = words[1].split(".")[0]
             if scope != "private":
                 set_key(words[1], conf, gid, ' '.join(words[2:]))
             return
 
         if words[0] == "!getcfg" and len(words) > 1:
-            scope = words[2].split(".")[0]
+            scope = words[1].split(".")[0]
             if scope != "private":
                 val = str(get(gid, words[1], conf))
                 await message.channel.send("{0} = {1}".format(words[1], val))
