@@ -3,6 +3,9 @@
   "delete_interval_after_warning": 5,
   "warn_interval": 15,
   "filepath": "/home/tama/bot/data",
+  "private": {
+    "banner": "banner.txt"
+  },
   "listen_to" : {
     "573519479334633472": {
 	"id": "PBL",
